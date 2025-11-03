@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>83910631762-87u29774lmiimsu4t7quve6kqn5d0kqi.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.83910631762-87u29774lmiimsu4t7quve6kqn5d0kqi</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>83910631762-lmsmm40hpdvcebrerh0h7grgqrmln8i8.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyDn-vou88F1KRf6USn_F2Ne6yfcpswEd2M</string>
+	<key>GCM_SENDER_ID</key>
+	<string>83910631762</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.instant.app</string>
+	<key>PROJECT_ID</key>
+	<string>firecars-b2ed4</string>
+	<key>STORAGE_BUCKET</key>
+	<string>firecars-b2ed4.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:83910631762:ios:4cb067016e347bd0dada8b</string>
+</dict>
+</plist>
