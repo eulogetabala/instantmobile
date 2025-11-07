@@ -6,7 +6,16 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:android": "eas build --platform android",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:android:production": "eas build --platform android --profile production",
+    "build:apk:debug": "./build-apk.sh debug local",
+    "build:apk:release": "./build-apk.sh release production",
+    "build:apk:release:local": "./build-apk.sh release local",
+    "build:ios": "eas build --platform ios",
+    "submit:android": "eas submit --platform android",
+    "submit:ios": "eas submit --platform ios"
   },
   "dependencies": {
     "@expo-google-fonts/montserrat": "^0.4.2",
@@ -66,6 +75,9 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "react-art": "^16.13.1",
+    "react-dom": "^16.14.0",
+    "react-native-web": "^0.9.13",
     "typescript": "~5.9.2"
   },
   "private": true
