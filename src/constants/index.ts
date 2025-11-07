@@ -8,13 +8,35 @@ export const APP_CONFIG = {
   website: 'https://instantplus.cd',
 };
 
-// Changer USE_LOCALHOST à true pour utiliser localhost, false pour Render
-const USE_LOCALHOST = true; // 👈 true = localhost, false = Render
+// Configuration de l'API via variables d'environnement
+// Priorité: EXPO_PUBLIC_API_URL > EXPO_PUBLIC_USE_LOCALHOST > valeur par défaut
+const getApiBaseURL = (): string => {
+  // Si une URL d'API est explicitement définie, l'utiliser
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+  
+  // Sinon, utiliser la logique USE_LOCALHOST
+  const useLocalhost = process.env.EXPO_PUBLIC_USE_LOCALHOST === 'true' || 
+                       (process.env.EXPO_PUBLIC_USE_LOCALHOST === undefined && true); // Par défaut: true pour dev
+  
+  if (useLocalhost) {
+    // Pour Android emulator: utiliser 10.0.2.2
+    // Pour appareil physique: utiliser l'IP locale du Mac/PC
+    const localIP = process.env.EXPO_PUBLIC_LOCAL_IP;
+    if (localIP) {
+      return `http://${localIP}:5001/api`;
+    }
+    // Par défaut pour développement local
+    return 'http://localhost:5001/api';
+  }
+  
+  // URL de production
+  return 'https://instant-backend-2m5j.onrender.com/api';
+};
 
 export const API_CONFIG = {
-  baseURL: USE_LOCALHOST
-    ? 'http://localhost:5001/api'  // Backend local sur port 5001
-    : 'https://instant-backend-2m5j.onrender.com/api',  // API déployée sur Render
+  baseURL: getApiBaseURL(),
   timeout: 30000,
   retryAttempts: 3,
 };

@@ -8,27 +8,64 @@
       "distribution": "internal",
       "android": {
         "gradleCommand": ":app:assembleDebug",
-        "buildType": "apk"
+        "buildType": "apk",
+        "image": "latest"
+      },
+      "ios": {
+        "simulator": true,
+        "image": "latest"
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "image": "latest",
+        "env": {
+          "EXPO_PUBLIC_ENV": "preview"
+        }
       },
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "image": "latest",
+        "env": {
+          "EXPO_PUBLIC_ENV": "preview"
+        }
       }
     },
     "production": {
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "image": "latest",
+        "env": {
+          "EXPO_PUBLIC_ENV": "production"
+        }
+      },
+      "ios": {
+        "image": "latest",
+        "env": {
+          "EXPO_PUBLIC_ENV": "production"
+        }
+      },
+      "env": {
+        "NODE_ENV": "production"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-services.json",
+        "track": "internal"
+      },
+      "ios": {
+        "appleId": "your-apple-id@example.com",
+        "ascAppId": "your-app-store-connect-app-id",
+        "appleTeamId": "your-apple-team-id"
+      }
+    }
   }
 }
+
 
 

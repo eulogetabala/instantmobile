@@ -74,3 +74,9 @@ Puis utiliser l'URL ngrok dans `API_CONFIG.baseURL`.
 
 Déployer le backend sur un service accessible depuis le mobile (Render, Heroku, etc.)
 
+
+
+
+
+
+

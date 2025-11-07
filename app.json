@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "extra": {
       "eas": {
-        "projectId": "your-expo-project-uuid-here"
+        "projectId": "95b67cc1-c6b2-451e-9b6a-f145316dcc61"
       }
     },
     "splash": {
@@ -22,12 +22,15 @@
       "bundleIdentifier": "com.instant.app",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
       "package": "com.instant.app",
       "versionCode": 1,
+      "minSdkVersion": 24,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
