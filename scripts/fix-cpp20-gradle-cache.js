@@ -14,6 +14,9 @@ const TRANSFORMS_DIR = path.join(GRADLE_CACHE, '8.14.3', 'transforms');
 
 function addInclude(filePath, include, pattern) {
   try {
+    // Vérifier les permissions en écriture
+    fs.accessSync(filePath, fs.constants.W_OK);
+    
     let content = fs.readFileSync(filePath, 'utf8');
     
     // Vérifier si le pattern existe et l'include n'existe pas
@@ -33,10 +36,22 @@ function addInclude(filePath, include, pattern) {
         fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
         console.log(`✅ Fixed: ${filePath}`);
         return true;
+      } else {
+        // Si pas de #include trouvé, ajouter au début après #pragma once
+        const pragmaIndex = lines.findIndex(line => line.includes('#pragma once'));
+        if (pragmaIndex >= 0) {
+          lines.splice(pragmaIndex + 1, 0, include);
+          fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
+          console.log(`✅ Fixed: ${filePath} (added after #pragma once)`);
+          return true;
+        }
       }
+    } else if (content.includes(include)) {
+      console.log(`ℹ️  Already fixed: ${filePath}`);
     }
   } catch (error) {
     // Ignorer les erreurs (fichier peut ne pas exister ou être en lecture seule)
+    console.log(`⚠️  Could not fix ${filePath}: ${error.message}`);
   }
   return false;
 }
