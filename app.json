@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,  // Temporairement désactivé pour contourner les erreurs C++20
+    "newArchEnabled": true,  // Requis pour react-native-reanimated et react-native-worklets
     "extra": {
       "eas": {
         "projectId": "17c80057-dc50-4d61-a7ae-5abe18088583"
@@ -31,7 +31,7 @@
             "targetSdkVersion": 35,
             "buildToolsVersion": "35.0.0",
             "ndkVersion": "25.2.9519653",  // Compatible avec React Native 0.81.4
-            "newArchEnabled": false  // Temporairement désactivé pour contourner les erreurs C++20
+            "newArchEnabled": true  // Requis pour react-native-reanimated et react-native-worklets
           }
         }
       ],
