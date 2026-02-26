@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "mobile",
-    "slug": "mobile",
+    "slug": "instant",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "extra": {
       "eas": {
-        "projectId": "95b67cc1-c6b2-451e-9b6a-f145316dcc61"
+        "projectId": "17c80057-dc50-4d61-a7ae-5abe18088583"
       }
     },
     "splash": {
@@ -17,14 +17,44 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          },
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0",
+            "ndkVersion": "25.2.9519653",  // Compatible avec React Native 0.81.4
+            "newArchEnabled": true
+          }
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Instant+ to access your camera for streaming.",
+          "microphonePermission": "Allow Instant+ to access your microphone for streaming."
+        }
+      ],
+      "./plugins/withModularHeaders"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.instant.app",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "UIBackgroundModes": [
-          "remote-notification"
-        ]
+          "remote-notification",
+          "audio"
+        ],
+        "NSCameraUsageDescription": "Allow Instant+ to access your camera for streaming.",
+        "NSMicrophoneUsageDescription": "Allow Instant+ to access your microphone for streaming."
       }
     },
     "android": {
@@ -39,6 +69,8 @@
         "android.permission.INTERNET",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
@@ -47,6 +79,7 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "owner": "helloims-organization"
   }
 }
