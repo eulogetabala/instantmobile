@@ -1,0 +1,12 @@
+diff --git a/node_modules/react-native/ReactCommon/react/utils/hash_combine.h b/node_modules/react-native/ReactCommon/react/utils/hash_combine.h
+index dab82ca..6671e00 100644
+--- a/node_modules/react-native/ReactCommon/react/utils/hash_combine.h
++++ b/node_modules/react-native/ReactCommon/react/utils/hash_combine.h
+@@ -9,6 +9,7 @@
+ 
+ #include <functional>
+ #include <type_traits>
++#include <concepts>
+ 
+ namespace facebook::react {
+ 
