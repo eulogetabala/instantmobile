@@ -42,7 +42,8 @@
           "microphonePermission": "Allow Instant+ to access your microphone for streaming."
         }
       ],
-      "./plugins/withModularHeaders"
+      "./plugins/withModularHeaders",
+      "./plugins/withFixCpp20"
     ],
     "ios": {
       "supportsTablet": true,
