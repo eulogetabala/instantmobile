@@ -15,8 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { brandColors, typography, borderRadius, shadows } from '../../constants/theme';
+import { apiService } from '../../services/api';
 import { eventService } from '../../services/events';
 import { Event as ApiEvent } from '../../types';
+import { getEventImage } from '../../utils/image';
 
 const { width } = Dimensions.get('window');
 
@@ -55,12 +57,22 @@ const GuestHomeScreen: React.FC = () => {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([]);
   const [freeEvents, setFreeEvents] = useState<Event[]>([]);
   const [liveEvents, setLiveEvents] = useState<Event[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    loadEvents();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      loadCategories(),
+      loadEvents()
+    ]);
+    setRefreshing(false);
+  };
 
   // Données du slider
   const sliderData: SliderItem[] = [
@@ -87,220 +99,66 @@ const GuestHomeScreen: React.FC = () => {
     },
   ];
 
-  // Données des catégories
-  const categories: Category[] = [
-    {
-      id: '1',
-      name: 'Concert',
-      icon: 'musical-notes',
-      color: '#FF6B6B',
-    },
-    {
-      id: '2',
-      name: 'Théâtre',
-      icon: 'film',
-      color: '#4ECDC4',
-    },
-    {
-      id: '3',
-      name: 'Formation',
-      icon: 'school',
-      color: '#45B7D1',
-    },
-    {
-      id: '4',
-      name: 'Gospel',
-      icon: 'heart',
-      color: '#96CEB4',
-    },
-    {
-      id: '5',
-      name: 'Conférence',
-      icon: 'mic',
-      color: '#FFEAA7',
-    },
-    {
-      id: '6',
-      name: 'Festival',
-      icon: 'calendar',
-      color: '#DDA0DD',
-    },
-  ];
+  const loadCategories = async () => {
+    try {
+      const response = await apiService.get('/categories');
+      if (response.success && response.data.categories) {
+        setCategories(response.data.categories);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des catégories:', error);
+      // Fallback local en cas d'erreur API
+      setCategories([
+        { id: '1', name: 'Concert', icon: 'musical-notes', color: '#FF6B6B' },
+        { id: '2', name: 'Théâtre', icon: 'film', color: '#9C27B0' },
+        { id: '3', name: 'Formation', icon: 'school', color: '#45B7D1' },
+        { id: '4', name: 'Gospel', icon: 'heart', color: '#96CEB4' },
+      ]);
+    }
+  };
+
+  const transformEvent = (event: ApiEvent): Event => ({
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    date: new Date(event.startDate).toLocaleDateString('fr-FR'),
+    time: new Date(event.startDate).toLocaleTimeString('fr-FR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    }),
+    price: event.pricing?.isFree ? 0 : (event.pricing?.price?.amount || 0),
+    isFree: event.pricing?.isFree || false,
+    image: getEventImage(event.media?.poster),
+    category: event.category,
+    isLive: event.streaming?.isLive || false,
+  });
 
   const loadEvents = async () => {
     try {
-      // Charger les événements en direct
-      const liveResponse = await eventService.getLiveEvents();
-      const transformedLiveEvents: Event[] = liveResponse.events.map((event: ApiEvent) => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        date: new Date(event.startDate).toLocaleDateString('fr-FR'),
-        time: new Date(event.startDate).toLocaleTimeString('fr-FR', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        price: event.pricing?.isFree ? 0 : (event.pricing?.price?.amount || 0),
-        isFree: event.pricing?.isFree || false,
-        image: require('../../../assets/images/1.jpg'), // Fallback image
-        category: event.category,
-        isLive: event.streaming?.isLive || false,
-      }));
-      setLiveEvents(transformedLiveEvents);
+      const [liveRes, freeRes, featuredRes] = await Promise.allSettled([
+        eventService.getLiveEvents(),
+        eventService.getFreeEvents(10),
+        eventService.getFeaturedEvents(10)
+      ]);
 
-      // Charger les événements gratuits (utilisés comme événements passés pour l'instant)
-      const freeResponse = await eventService.getFreeEvents(10);
-      const transformedFreeEvents: Event[] = freeResponse.events.map((event: ApiEvent) => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        date: new Date(event.startDate).toLocaleDateString('fr-FR'),
-        time: new Date(event.startDate).toLocaleTimeString('fr-FR', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        price: event.pricing?.isFree ? 0 : (event.pricing?.price?.amount || 0),
-        isFree: event.pricing?.isFree || false,
-        image: require('../../../assets/images/1.jpg'), // Fallback image
-        category: event.category,
-        isLive: event.streaming?.isLive || false,
-      }));
-      setFreeEvents(transformedFreeEvents);
+      if (liveRes.status === 'fulfilled') {
+        setLiveEvents(liveRes.value.events.map(transformEvent));
+      }
 
-      // Charger les événements en vedette (utilisés comme événements à venir pour l'instant)
-      const featuredResponse = await eventService.getFeaturedEvents(10);
-      const transformedFeaturedEvents: Event[] = featuredResponse.events.map((event: ApiEvent) => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        date: new Date(event.startDate).toLocaleDateString('fr-FR'),
-        time: new Date(event.startDate).toLocaleTimeString('fr-FR', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        price: event.pricing?.isFree ? 0 : (event.pricing?.price?.amount || 0),
-        isFree: event.pricing?.isFree || false,
-        image: require('../../../assets/images/1.jpg'), // Fallback image
-        category: event.category,
-        isLive: event.streaming?.isLive || false,
-      }));
-      setFeaturedEvents(transformedFeaturedEvents);
+      if (freeRes.status === 'fulfilled') {
+        setFreeEvents(freeRes.value.events.map(transformEvent));
+      }
+
+      if (featuredRes.status === 'fulfilled') {
+        setFeaturedEvents(featuredRes.value.events.map(transformEvent));
+      }
     } catch (error) {
-      console.error('Erreur lors du chargement des événements:', error);
-      
-      // Fallback vers des données mockées en cas d'erreur
-      const mockEvents: Event[] = [
-        {
-          id: '1',
-          title: 'Concert Gospel International',
-          description: 'Un concert exceptionnel avec les plus grandes voix du gospel',
-          date: '2024-01-15',
-          time: '20:00',
-          price: 0,
-          isFree: true,
-          image: require('../../../assets/images/1.jpg'),
-          category: 'Concert',
-          isLive: true,
-        },
-        {
-          id: '2',
-          title: 'Séminaire Leadership Premium',
-          description: 'Développez vos compétences en leadership avec des experts internationaux',
-          date: '2024-01-20',
-          time: '09:00',
-          price: 25000,
-          isFree: false,
-          image: require('../../../assets/images/2.jpg'),
-          category: 'Formation',
-          isLive: false,
-        },
-        {
-          id: '3',
-          title: 'Festival de Musique Traditionnelle',
-          description: 'Découvrez la richesse de la musique traditionnelle',
-          date: '2024-01-25',
-          time: '18:00',
-          price: 0,
-          isFree: true,
-          image: require('../../../assets/images/3.jpg'),
-          category: 'Festival',
-          isLive: false,
-        },
-        {
-          id: '4',
-          title: 'Conférence Tech Innovation',
-          description: 'Les dernières tendances technologiques avec les leaders du secteur',
-          date: '2024-01-30',
-          time: '14:00',
-          price: 35000,
-          isFree: false,
-          image: require('../../../assets/images/4.webp'),
-          category: 'Conférence',
-          isLive: false,
-        },
-        {
-          id: '5',
-          title: 'Masterclass Art Culinaire',
-          description: 'Apprenez les secrets des plus grands chefs avec des recettes exclusives',
-          date: '2024-02-05',
-          time: '16:00',
-          price: 18000,
-          isFree: false,
-          image: require('../../../assets/images/6.png'),
-          category: 'Cuisine',
-          isLive: false,
-        },
-        {
-          id: '6',
-          title: 'Concert Jazz Intime',
-          description: 'Une soirée jazz exceptionnelle dans une ambiance intimiste',
-          date: '2024-02-10',
-          time: '21:00',
-          price: 0,
-          isFree: true,
-          image: require('../../../assets/images/7.jpg'),
-          category: 'Concert',
-          isLive: true,
-        },
-        {
-          id: '7',
-          title: 'Conférence Crypto & Blockchain',
-          description: 'Les dernières tendances de la cryptomonnaie et de la blockchain',
-          date: '2024-01-15',
-          time: '19:00',
-          price: 45000,
-          isFree: false,
-          image: require('../../../assets/images/1.jpg'),
-          category: 'Conférence',
-          isLive: true,
-        },
-        {
-          id: '8',
-          title: 'Masterclass Trading Premium',
-          description: 'Apprenez les stratégies de trading avancées avec des experts',
-          date: '2024-01-15',
-          time: '20:30',
-          price: 60000,
-          isFree: false,
-          image: require('../../../assets/images/2.jpg'),
-          category: 'Formation',
-          isLive: true,
-        },
-      ];
-
-      // À venir = événements payants (vedette)
-      setFeaturedEvents(mockEvents.filter(event => !event.isFree));
-      // Passés = événements gratuits
-      setFreeEvents(mockEvents.filter(event => event.isFree));
-      // En direct maintenant = événements en direct
-      setLiveEvents(mockEvents.filter(event => event.isLive));
+      console.error('Erreur critique lors du chargement des événements:', error);
     }
   };
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    await loadEvents();
-    setRefreshing(false);
+    await loadData();
   };
 
   const handleEventPress = (event: Event) => {
@@ -343,7 +201,7 @@ const GuestHomeScreen: React.FC = () => {
       style={styles.categoryItem}
       onPress={() => {
         // Navigation vers la liste des événements filtrés par catégorie
-        (navigation as any).navigate('Events', { category: item.name.toLowerCase() });
+        (navigation as any).navigate('Events', { category: item.name });
       }}
       activeOpacity={0.8}
     >

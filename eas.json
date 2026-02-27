@@ -1,71 +1,36 @@
 {
   "cli": {
-    "version": ">= 12.0.0"
+    "version": ">= 5.0.0"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
       "android": {
-        "gradleCommand": ":app:assembleDebug",
-        "buildType": "apk",
-        "image": "latest"
-      },
-      "ios": {
-        "simulator": true,
-        "image": "latest"
+        "buildType": "apk"
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "image": "latest",
-        "env": {
-          "EXPO_PUBLIC_ENV": "preview"
-        }
+        "buildType": "apk"
       },
-      "ios": {
-        "simulator": false,
-        "image": "latest",
-        "env": {
-          "EXPO_PUBLIC_ENV": "preview"
-        }
+      "env": {
+        "EXPO_PUBLIC_USE_LOCALHOST": "false",
+        "EXPO_PUBLIC_API_URL": "https://instant-backend-1.onrender.com/api"
       }
     },
     "production": {
       "android": {
-        "buildType": "apk",
-        "image": "latest",
-        "env": {
-          "EXPO_PUBLIC_ENV": "production"
-        }
-      },
-      "ios": {
-        "image": "latest",
-        "env": {
-          "EXPO_PUBLIC_ENV": "production"
-        }
+        "buildType": "apk"
       },
       "env": {
-        "NODE_ENV": "production"
+        "EXPO_PUBLIC_USE_LOCALHOST": "false",
+        "EXPO_PUBLIC_API_URL": "https://instant-backend-1.onrender.com/api"
       }
     }
   },
   "submit": {
-    "production": {
-      "android": {
-        "serviceAccountKeyPath": "./google-services.json",
-        "track": "internal"
-      },
-      "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "your-app-store-connect-app-id",
-        "appleTeamId": "your-apple-team-id"
-      }
-    }
+    "production": {}
   }
 }
-
-
-

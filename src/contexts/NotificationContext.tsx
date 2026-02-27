@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { notificationService, NotificationData, NotificationSettings } from '../services/notifications';
+import { useAuth } from './AuthContext';
 
 interface NotificationContextType {
   notifications: NotificationData[];
@@ -25,16 +26,28 @@ interface NotificationProviderProps {
 }
 
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    initializeNotifications();
-  }, []);
+    if (isAuthenticated) {
+      initializeNotifications();
+    } else {
+      // Si l'utilisateur n'est pas connecté, réinitialiser l'état
+      setNotifications([]);
+      setSettings(null);
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
 
   const initializeNotifications = async () => {
+    if (!isAuthenticated) {
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
@@ -47,6 +60,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       await loadNotifications();
 
     } catch (error) {
+      // Ne pas logger les erreurs 401 comme des erreurs critiques
+      if (error instanceof Error && error.message.includes('401')) {
+        // Utilisateur non authentifié, c'est normal
+        setNotifications([]);
+        setSettings(null);
+        return;
+      }
       console.error('Erreur lors de l\'initialisation des notifications:', error);
       setError(error instanceof Error ? error.message : 'Erreur d\'initialisation');
     } finally {

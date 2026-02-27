@@ -11,6 +11,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,10 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { brandColors, typography, borderRadius, shadows } from '../../constants/theme';
 import { streamingService } from '../../services/streaming';
+import { eventService } from '../../services/events';
+import { AgoraVideoPlayer } from '../../components/streaming/AgoraVideoPlayer';
+import VideoPlayer from '../../components/ui/VideoPlayer';
+import { getEventImage } from '../../utils/image';
 
 const { width, height } = Dimensions.get('window');
 
@@ -47,11 +52,14 @@ const StreamingScreen: React.FC<StreamingScreenProps> = () => {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [eventInfo, setEventInfo] = useState<any>(null);
+  const [agoraAccess, setAgoraAccess] = useState<any>(null);
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   const eventId = (route.params as any)?.eventId;
   const isReplay = (route.params as any)?.isReplay || false;
   
-  const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (eventId) {
@@ -72,33 +80,28 @@ const StreamingScreen: React.FC<StreamingScreenProps> = () => {
 
   const loadEventInfo = async () => {
     try {
-      // Simulation des données d'événement
-      setEventInfo({
-        id: eventId,
-        title: 'Concert Gospel International',
-        description: 'Un concert exceptionnel avec les plus grandes voix du gospel',
-        organizer: 'Instant+ Events',
-        startTime: new Date().toISOString(),
-        viewerCount: 1250,
-        isLive: !isReplay,
-      });
+      setIsLoading(true);
+      const data = await eventService.getEventById(eventId);
+      setEventInfo(data.event);
+      setViewerCount(data.event.streaming?.currentViewers || 0);
     } catch (error) {
       console.error('Erreur lors du chargement des infos événement:', error);
+      setError('Impossible de charger les informations de l\'événement');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const joinLiveStream = async () => {
     try {
       setIsLoading(true);
-      // Simulation de la connexion au stream
-      setTimeout(() => {
-        setIsLoading(false);
-        setIsPlaying(true);
-        setViewerCount(1250);
-        setDuration(7200000); // 2 heures en millisecondes
-      }, 2000);
-    } catch (error) {
+      setError(null);
+      const access = await streamingService.getAgoraToken(eventId);
+      setAgoraAccess(access);
+    } catch (error: any) {
       console.error('Erreur lors de la connexion au stream:', error);
+      setError(error.message || 'Erreur lors de la connexion au live');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -106,14 +109,15 @@ const StreamingScreen: React.FC<StreamingScreenProps> = () => {
   const loadReplay = async () => {
     try {
       setIsLoading(true);
-      // Simulation du chargement du replay
-      setTimeout(() => {
-        setIsLoading(false);
-        setIsPlaying(true);
-        setDuration(7200000); // 2 heures en millisecondes
-      }, 1500);
-    } catch (error) {
+      setError(null);
+      const data = await streamingService.getStreamUrl(eventId);
+      console.log('🔗 URL du Replay récupérée:', data.hlsUrl);
+      setStreamUrl(data.hlsUrl);
+      setIsLoading(false);
+      setIsPlaying(true);
+    } catch (error: any) {
       console.error('Erreur lors du chargement du replay:', error);
+      setError(error.message || 'Erreur lors du chargement de la vidéo');
       setIsLoading(false);
     }
   };
@@ -175,27 +179,59 @@ const StreamingScreen: React.FC<StreamingScreenProps> = () => {
 
   const renderVideoPlayer = () => (
     <View style={[styles.videoContainer, isFullscreen && styles.fullscreenVideo]}>
-      {/* Zone vidéo simulée */}
+      {/* Lecteur vidéo Agora ou Placeholder Replay */}
       <TouchableOpacity
         style={styles.videoArea}
         onPress={showControlsTemporarily}
         activeOpacity={1}
       >
-        <View style={styles.videoPlaceholder}>
-          <Ionicons 
-            name={isReplay ? "play-circle" : "radio"} 
-            size={80} 
-            color={brandColors.white} 
+        {!isReplay && agoraAccess ? (
+          <AgoraVideoPlayer
+            appId={agoraAccess.agoraAppId}
+            channelName={agoraAccess.channelName}
+            token={agoraAccess.token}
+            uid={parseInt(agoraAccess.uid)}
+            title={eventInfo?.title}
+            onClose={() => navigation.goBack()}
           />
-          <Text style={styles.videoPlaceholderText}>
-            {isReplay ? 'Replay' : 'Stream en direct'}
-          </Text>
-          {isLoading && (
-            <View style={styles.loadingOverlay}>
-              <Text style={styles.loadingText}>Chargement...</Text>
-            </View>
-          )}
-        </View>
+        ) : isReplay && streamUrl ? (
+          <VideoPlayer
+            videoUrl={streamUrl}
+            height={isFullscreen ? height : height * 0.4}
+            shouldPlay={isPlaying}
+            resizeMode="contain"
+            style={{ width: '100%', height: '100%' }}
+          />
+        ) : (
+          <View style={styles.videoPlaceholder}>
+            {error ? (
+              <>
+                <Ionicons name="alert-circle" size={60} color="#ff4444" />
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={isReplay ? loadReplay : joinLiveStream}>
+                  <Text style={styles.retryText}>Réessayer</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Ionicons 
+                  name={isReplay ? "play-circle" : "radio"} 
+                  size={80} 
+                  color={brandColors.white} 
+                />
+                <Text style={styles.videoPlaceholderText}>
+                  {isReplay ? 'Chargement du Replay...' : 'Connexion au direct...'}
+                </Text>
+              </>
+            )}
+            {isLoading && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color={brandColors.white} />
+                <Text style={styles.loadingText}>Patientez...</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Contrôles vidéo */}
         {showControls && (
@@ -592,6 +628,26 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: brandColors.lightGray,
+  },
+  errorText: {
+    color: brandColors.white,
+    fontSize: typography.fontSize.base,
+    textAlign: 'center',
+    marginTop: 20,
+    paddingHorizontal: 30,
+    fontFamily: 'Montserrat_500Medium',
+  },
+  retryButton: {
+    marginTop: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: brandColors.primary,
+    borderRadius: borderRadius.md,
+  },
+  retryText: {
+    color: brandColors.white,
+    fontFamily: 'Montserrat_600SemiBold',
+    fontSize: typography.fontSize.sm,
   },
 });
 

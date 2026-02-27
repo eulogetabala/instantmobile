@@ -9,8 +9,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoPlayer } from '../../components/streaming/VideoPlayer';
+import { AgoraVideoPlayer } from '../../components/streaming/AgoraVideoPlayer';
 import { useChat } from '../../hooks/useChat';
 import { streamingService } from '../../services/streaming';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface LiveScreenProps {
   route: {
@@ -23,8 +25,10 @@ interface LiveScreenProps {
 
 const LiveScreen: React.FC<LiveScreenProps> = ({ route }) => {
   const { eventId, eventTitle } = route.params;
+  const { user } = useAuth();
   const [streamInfo, setStreamInfo] = useState<any>(null);
   const [streamUrl, setStreamUrl] = useState<string>('');
+  const [agoraConfig, setAgoraConfig] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +51,18 @@ const LiveScreen: React.FC<LiveScreenProps> = ({ route }) => {
       const info = await streamingService.getStreamInfo(eventId);
       setStreamInfo(info);
       
-      if (info.isLive) {
+      const isLive = info.event?.streaming?.isLive || info.streamStats?.isLive;
+      
+      if (isLive) {
+        try {
+          const agoraData = await streamingService.getAgoraToken(eventId);
+          setAgoraConfig(agoraData);
+        } catch (agoraErr) {
+          console.warn('⚠️ Échec récupération token Agora, repli sur HLS:', agoraErr);
+          const url = await streamingService.getStreamUrl(eventId);
+          setStreamUrl(url.hlsUrl || url.dashUrl || '');
+        }
+      } else {
         const url = await streamingService.getStreamUrl(eventId);
         setStreamUrl(url.hlsUrl || url.dashUrl || '');
       }
@@ -96,7 +111,7 @@ const LiveScreen: React.FC<LiveScreenProps> = ({ route }) => {
     );
   }
 
-  if (!streamInfo.isLive) {
+  if (!streamInfo.event?.streaming?.isLive && !streamInfo.streamStats?.isLive) {
     return (
       <View style={styles.notLiveContainer}>
         <Ionicons name="radio" size={48} color="#666666" />
@@ -111,15 +126,30 @@ const LiveScreen: React.FC<LiveScreenProps> = ({ route }) => {
     );
   }
 
+  const isLive = streamInfo.event?.streaming?.isLive || streamInfo.streamStats?.isLive;
+
   return (
     <View style={styles.container}>
-      {/* Lecteur vidéo */}
-      <VideoPlayer
-        streamUrl={streamUrl}
-        title={eventTitle}
-        isLive={true}
-        onError={(error) => setError(error)}
-      />
+      {/* Lecteur vidéo (Agora pour le live, VideoPlayer pour le replay/HLS) */}
+      {agoraConfig && isLive ? (
+        <View style={{ height: 250 }}>
+          <AgoraVideoPlayer
+            appId={agoraConfig.agoraAppId}
+            channelName={agoraConfig.channelName}
+            token={agoraConfig.token}
+            uid={parseInt(agoraConfig.uid)}
+            title={eventTitle}
+            onClose={() => setAgoraConfig(null)}
+          />
+        </View>
+      ) : (
+        <VideoPlayer
+          streamUrl={streamUrl}
+          title={eventTitle}
+          isLive={isLive}
+          onError={(error) => setError(error)}
+        />
+      )}
 
       {/* Informations du stream */}
       <View style={styles.streamInfo}>
@@ -127,7 +157,7 @@ const LiveScreen: React.FC<LiveScreenProps> = ({ route }) => {
           <View style={styles.statItem}>
             <Ionicons name="eye" size={16} color="#FF6B35" />
             <Text style={styles.statText}>
-              {streamInfo.currentViewers || 0} spectateurs
+              {(streamInfo.event?.streaming?.currentViewers || streamInfo.streamStats?.currentViewers) || 0} spectateurs
             </Text>
           </View>
           
@@ -155,7 +185,7 @@ const LiveScreen: React.FC<LiveScreenProps> = ({ route }) => {
                   {message.user.firstName} {message.user.lastName}
                 </Text>
                 <Text style={styles.messageTime}>
-                  {new Date(message.timestamp).toLocaleTimeString()}
+                  {new Date(message.createdAt || Date.now()).toLocaleTimeString()}
                 </Text>
               </View>
               
@@ -190,8 +220,7 @@ const LiveScreen: React.FC<LiveScreenProps> = ({ route }) => {
                 [
                   { text: 'Annuler', style: 'cancel' },
                   { 
-                    text: 'Envoyer', 
-                    onPress: (text) => text && handleSendMessage(text)
+                    onPress: (text: string | undefined) => text && handleSendMessage(text)
                   },
                 ]
               );

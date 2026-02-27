@@ -377,9 +377,24 @@ export interface EventForm {
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
+  Guest: undefined;
+  GuestTabs: undefined;
+  MainTabs: undefined;
+  Home: undefined;
+  Events: undefined;
+  Live: undefined;
+  Replays: undefined;
+  EventList: undefined;
+  LiveList: undefined;
+  ReplaysList: undefined;
   EventDetails: { eventId: string };
   Streaming: { eventId: string };
-  Payment: { eventId: string; quantity: number };
+  Payment: { eventId: string; quantity?: number };
+  Categories: undefined;
+  Login: undefined;
+  Register: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { token?: string };
   Profile: undefined;
   EditProfile: undefined;
   Favorites: undefined;
@@ -388,14 +403,13 @@ export type RootStackParamList = {
   NotificationHistory: undefined;
   UserHistory: undefined;
   Tickets: undefined;
-  Replays: undefined;
 };
 
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
-  ResetPassword: { token: string };
+  ResetPassword: { token?: string };
 };
 
 export type MainTabParamList = {

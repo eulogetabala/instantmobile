@@ -10,6 +10,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
@@ -19,6 +21,7 @@ import CountryPicker, { Country, CountryCode } from 'react-native-country-picker
 import { useAuth } from '../../contexts/AuthContext';
 import { theme } from '../../constants/theme';
 import { VALIDATION_RULES, ERROR_MESSAGES } from '../../constants';
+import { AuthStackParamList } from '../../types';
 
 const loginSchema = yup.object({
   phone: yup
@@ -33,7 +36,10 @@ const loginSchema = yup.object({
 
 type LoginFormData = yup.InferType<typeof loginSchema>;
 
+type LoginScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
+
 const LoginScreen: React.FC = () => {
+  const navigation = useNavigation<LoginScreenNavigationProp>();
   const { login, isLoading, error } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [country, setCountry] = useState<Country>({
@@ -319,7 +325,7 @@ const LoginScreen: React.FC = () => {
               {/* Lien mot de passe oublié */}
               <TouchableOpacity
                 style={{ alignSelf: 'flex-end', marginBottom: 30 }}
-                onPress={() => {/* Navigation vers mot de passe oublié */}}
+                onPress={() => navigation.navigate('ForgotPassword')}
               >
                 <Text style={{
                   color: theme.colors.primary,
@@ -369,7 +375,7 @@ const LoginScreen: React.FC = () => {
                   Pas encore de compte ?{' '}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => {/* Navigation vers l'inscription */}}
+                  onPress={() => navigation.navigate('Register')}
                 >
                   <Text style={{
                     color: theme.colors.primary,

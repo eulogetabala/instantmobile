@@ -87,6 +87,36 @@ export interface GetLiveEventsResponse {
 }
 
 class StreamingService {
+  // Obtenir le token Agora pour le streaming en direct
+  async getAgoraToken(eventId: string): Promise<{
+    channelName: string;
+    uid: string;
+    token: string;
+    expiresAt: string;
+    agoraAppId: string;
+  }> {
+    try {
+      const response = await apiService.get<{
+        access: {
+          channelName: string;
+          uid: string;
+          token: string;
+          expiresAt: string;
+          agoraAppId: string;
+        };
+      }>(`/streaming/${eventId}/access`);
+
+      if (response.success && response.data) {
+        return response.data.access;
+      } else {
+        throw new Error(response.error?.message || 'Erreur lors de la récupération du token Agora');
+      }
+    } catch (error) {
+      console.error('Erreur getAgoraToken:', error);
+      throw error;
+    }
+  }
+
   // Obtenir l'URL de stream pour un événement
   async getStreamUrl(eventId: string): Promise<{
     hlsUrl: string;

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { API_CONFIG } from '../constants';
 
 /**
  * Images locales disponibles pour le fallback
@@ -66,6 +67,7 @@ export const getLocalImageByEventId = (eventId?: string | null, sectionIndex: nu
 
 /**
  * Convertit une URL avec localhost/127.0.0.1 en URL accessible depuis le mobile
+ * Gère automatiquement le backend local et Render
  */
 export const getAccessibleImageUrl = (url: string | null | undefined): string | null => {
   if (!url || typeof url !== 'string') {
@@ -83,20 +85,86 @@ export const getAccessibleImageUrl = (url: string | null | undefined): string | 
     return null;
   }
 
-  // Remplacer localhost par l'IP correcte selon la plateforme
-  if (trimmedUrl.includes('localhost') || trimmedUrl.includes('127.0.0.1')) {
-    if (Platform.OS === 'android') {
-      // Android emulator utilise 10.0.2.2 pour accéder à localhost
-      trimmedUrl = trimmedUrl.replace(/localhost/g, '10.0.2.2').replace(/127\.0\.0\.1/g, '10.0.2.2');
-    } else if (Platform.OS === 'ios') {
-      // iOS simulator peut utiliser localhost, mais pour appareil physique, utiliser l'IP locale
-      const localIP = process.env.EXPO_PUBLIC_LOCAL_IP;
-      if (localIP) {
-        trimmedUrl = trimmedUrl.replace(/localhost/g, localIP).replace(/127\.0\.0\.1/g, localIP);
+  // Si l'URL contient déjà Render, la retourner telle quelle
+  if (trimmedUrl.includes('onrender.com')) {
+    return trimmedUrl;
+  }
+
+  // Utiliser API_CONFIG pour déterminer le backend actuel
+  const baseURL = API_CONFIG.baseURL || '';
+  
+  // Si on utilise Render, remplacer localhost/IP locale par Render
+  if (baseURL.includes('onrender.com')) {
+    const renderBase = baseURL.split('/api')[0];
+    // Remplacer localhost, 127.0.0.1, ou IPs locales par Render
+    if (trimmedUrl.includes('localhost') || trimmedUrl.includes('127.0.0.1') || /192\.168\.\d+\.\d+/.test(trimmedUrl)) {
+      // Extraire le chemin de l'image
+      const urlObj = new URL(trimmedUrl);
+      const imagePath = urlObj.pathname;
+      trimmedUrl = `${renderBase}${imagePath}`;
+      if (__DEV__) {
+        console.log(`🔄 Image URL - Conversion vers Render: ${url.substring(0, 60)}... → ${trimmedUrl.substring(0, 60)}...`);
       }
-      // iOS simulator peut utiliser localhost, on garde tel quel
+      return trimmedUrl;
     }
-    // Si c'est web, on garde localhost tel quel
+  }
+
+  // Si on utilise le backend local, remplacer localhost par l'IP correcte
+  // Utiliser l'URL de base actuelle (déjà déclarée plus haut) pour déterminer l'IP cible
+  
+  // Extraire l'IP ou le domaine de baseURL
+  let targetHost: string | null = null;
+  try {
+    if (baseURL.includes('onrender.com')) {
+      // Si on utilise Render, retourner l'URL telle quelle (déjà géré plus haut)
+      return trimmedUrl;
+    } else if (baseURL.includes('http://')) {
+      const urlMatch = baseURL.match(/http:\/\/([^:]+)/);
+      if (urlMatch) {
+        targetHost = urlMatch[1];
+      }
+    }
+  } catch (e) {
+    // Ignorer les erreurs de parsing
+  }
+  
+  // Si pas d'host détecté, utiliser la logique par défaut
+  if (!targetHost || targetHost === 'localhost') {
+    const possibleIPs = ['192.168.1.119', '192.168.1.93', '192.168.1.96', '192.168.1.103'];
+    const localIP = process.env.EXPO_PUBLIC_LOCAL_IP || possibleIPs[0];
+    
+    if (Platform.OS === 'android') {
+      targetHost = '10.0.2.2';
+    } else {
+      targetHost = localIP;
+    }
+  }
+  
+  // Remplacer localhost/127.0.0.1 si présent
+  if (trimmedUrl.includes('localhost') || trimmedUrl.includes('127.0.0.1')) {
+    trimmedUrl = trimmedUrl
+      .replace(/localhost/g, targetHost)
+      .replace(/127\.0\.0\.1/g, targetHost);
+    if (__DEV__) {
+      console.log(`🔄 Image URL - localhost remplacé par ${targetHost}`);
+    }
+  }
+  
+  // Remplacer les anciennes IPs si présentes (seulement si différente de targetHost)
+  const oldIPs = ['192.168.1.96', '192.168.1.103', '192.168.1.88', '192.168.1.105'];
+  for (const oldIP of oldIPs) {
+    if (trimmedUrl.includes(oldIP) && oldIP !== targetHost) {
+      const oldIPRegex = new RegExp(oldIP.replace(/\./g, '\\.'), 'g');
+      trimmedUrl = trimmedUrl.replace(oldIPRegex, targetHost);
+      if (__DEV__) {
+        console.log(`🔄 Image URL - Ancienne IP remplacée: ${oldIP} → ${targetHost}`);
+      }
+    }
+  }
+  
+  // Ne pas remplacer si l'URL contient déjà targetHost
+  if (trimmedUrl.includes(targetHost)) {
+    return trimmedUrl;
   }
 
   return trimmedUrl;

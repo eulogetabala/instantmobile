@@ -10,6 +10,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
@@ -19,6 +21,7 @@ import CountryPicker, { Country, CountryCode } from 'react-native-country-picker
 import { useAuth } from '../../contexts/AuthContext';
 import { theme } from '../../constants/theme';
 import { VALIDATION_RULES, ERROR_MESSAGES } from '../../constants';
+import { AuthStackParamList } from '../../types';
 
 const registerSchema = yup.object({
   firstName: yup
@@ -47,7 +50,10 @@ const registerSchema = yup.object({
 
 type RegisterFormData = yup.InferType<typeof registerSchema>;
 
+type RegisterScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Register'>;
+
 const RegisterScreen: React.FC = () => {
+  const navigation = useNavigation<RegisterScreenNavigationProp>();
   const { register, isLoading, error } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -418,15 +424,18 @@ const RegisterScreen: React.FC = () => {
                   control={control}
                   name="password"
                   render={({ field: { onChange, onBlur, value } }) => (
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: theme.colors.surface,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: errors.password ? theme.colors.error : theme.colors.outline,
-                      paddingHorizontal: 16,
-                    }}>
+                    <View 
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: theme.colors.surface,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: errors.password ? theme.colors.error : theme.colors.outline,
+                        paddingHorizontal: 16,
+                        minHeight: 56,
+                      }}
+                    >
                       <Ionicons
                         name="lock-closed-outline"
                         size={20}
@@ -437,8 +446,11 @@ const RegisterScreen: React.FC = () => {
                         style={{
                           flex: 1,
                           paddingVertical: 16,
+                          paddingHorizontal: 0,
                           fontSize: 16,
                           color: theme.colors.onSurface,
+                          fontFamily: 'Montserrat_400Regular',
+                          minHeight: 24,
                         }}
                         placeholder="Votre mot de passe"
                         placeholderTextColor={theme.colors.onSurfaceVariant}
@@ -448,10 +460,16 @@ const RegisterScreen: React.FC = () => {
                         secureTextEntry={!showPassword}
                         autoCapitalize="none"
                         autoCorrect={false}
+                        editable={true}
+                        keyboardType="default"
+                        textContentType="password"
+                        returnKeyType="next"
                       />
                       <TouchableOpacity
                         onPress={() => setShowPassword(!showPassword)}
                         style={{ padding: 4 }}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
                         <Ionicons
                           name={showPassword ? "eye-off-outline" : "eye-outline"}
@@ -488,15 +506,18 @@ const RegisterScreen: React.FC = () => {
                   control={control}
                   name="confirmPassword"
                   render={({ field: { onChange, onBlur, value } }) => (
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: theme.colors.surface,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: errors.confirmPassword ? theme.colors.error : theme.colors.outline,
-                      paddingHorizontal: 16,
-                    }}>
+                    <View 
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: theme.colors.surface,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: errors.confirmPassword ? theme.colors.error : theme.colors.outline,
+                        paddingHorizontal: 16,
+                        minHeight: 56,
+                      }}
+                    >
                       <Ionicons
                         name="lock-closed-outline"
                         size={20}
@@ -507,8 +528,11 @@ const RegisterScreen: React.FC = () => {
                         style={{
                           flex: 1,
                           paddingVertical: 16,
+                          paddingHorizontal: 0,
                           fontSize: 16,
                           color: theme.colors.onSurface,
+                          fontFamily: 'Montserrat_400Regular',
+                          minHeight: 24,
                         }}
                         placeholder="Confirmer votre mot de passe"
                         placeholderTextColor={theme.colors.onSurfaceVariant}
@@ -518,10 +542,16 @@ const RegisterScreen: React.FC = () => {
                         secureTextEntry={!showConfirmPassword}
                         autoCapitalize="none"
                         autoCorrect={false}
+                        editable={true}
+                        keyboardType="default"
+                        textContentType="password"
+                        returnKeyType="done"
                       />
                       <TouchableOpacity
                         onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                         style={{ padding: 4 }}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
                         <Ionicons
                           name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
@@ -582,7 +612,7 @@ const RegisterScreen: React.FC = () => {
                   Déjà un compte ?{' '}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => {/* Navigation vers la connexion */}}
+                  onPress={() => navigation.navigate('Login')}
                 >
                   <Text style={{
                     color: theme.colors.primary,

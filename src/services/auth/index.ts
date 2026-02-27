@@ -180,6 +180,12 @@ class AuthService {
         return this.currentUser;
       }
 
+      // Vérifier qu'on a un token avant de faire la requête
+      const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
+      if (!token) {
+        return null;
+      }
+
       const response = await apiService.get<{ user: User }>('/auth/me');
       
       if (response.success && response.data) {
@@ -189,7 +195,12 @@ class AuthService {
       } else {
         return null;
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Ne pas logger les erreurs 401 comme des erreurs critiques (utilisateur simplement non connecté)
+      if (error?.response?.status === 401) {
+        // Utilisateur non authentifié, c'est normal
+        return null;
+      }
       console.error('Erreur getCurrentUser:', error);
       return null;
     }

@@ -17,6 +17,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { brandColors, typography, borderRadius, shadows } from '../../constants/theme';
 import { streamingService } from '../../services/streaming';
+import { eventService } from '../../services/events';
+import { Event as ApiEvent } from '../../types';
+import { getEventImage } from '../../utils/image';
 
 const { width } = Dimensions.get('window');
 
@@ -52,100 +55,33 @@ const ReplaysScreen: React.FC = () => {
     loadReplays();
   }, []);
 
+  const transformReplay = (event: ApiEvent): ReplayEvent => ({
+    id: event.id,
+    title: event.title,
+    description: event.description || '',
+    duration: event.duration || '0:00',
+    views: event.stats?.views || 0,
+    price: event.pricing?.isFree ? 0 : (event.pricing?.price?.amount || 0),
+    isFree: event.pricing?.isFree || false,
+    image: getEventImage(event.media?.poster),
+    category: event.category,
+    date: new Date(event.startDate).toLocaleDateString(),
+    isNew: false,
+    organizer: {
+      name: event.organizer?.name || 'Organisateur',
+      avatar: (event as any).organizer?.avatar || event.createdBy?.avatar,
+    },
+  });
+
   const loadReplays = async () => {
     try {
+      setLoading(true);
       console.log('🔄 Chargement des replays...');
-      // Simulation des données de replays
-      const mockReplays: ReplayEvent[] = [
-        {
-          id: '1',
-          title: 'Concert Gospel International - Replay',
-          description: 'Un concert exceptionnel avec les plus grandes voix du gospel',
-          duration: '2h 30min',
-          views: 12500,
-          price: 0,
-          isFree: true,
-          image: require('../../../assets/images/1.jpg'),
-          category: 'Concert',
-          date: '2024-01-15',
-          isNew: true,
-          organizer: {
-            name: 'Instant+ Events',
-            avatar: require('../../../assets/images/1.jpg'),
-          },
-        },
-        {
-          id: '2',
-          title: 'Séminaire Business Digital - Replay',
-          description: 'Apprenez les stratégies digitales pour développer votre entreprise',
-          duration: '3h 15min',
-          views: 8900,
-          price: 15000,
-          isFree: false,
-          image: require('../../../assets/images/2.jpg'),
-          category: 'Formation',
-          date: '2024-01-12',
-          isNew: false,
-          organizer: {
-            name: 'Business Academy',
-            avatar: require('../../../assets/images/2.jpg'),
-          },
-        },
-        {
-          id: '3',
-          title: 'Conférence Tech Innovation - Replay',
-          description: 'Découvrez les dernières innovations technologiques',
-          duration: '1h 45min',
-          views: 15600,
-          price: 0,
-          isFree: true,
-          image: require('../../../assets/images/3.jpg'),
-          category: 'Conférence',
-          date: '2024-01-10',
-          isNew: false,
-          organizer: {
-            name: 'Tech Hub',
-            avatar: require('../../../assets/images/3.jpg'),
-          },
-        },
-        {
-          id: '4',
-          title: 'Workshop Design Thinking - Replay',
-          description: 'Maîtrisez la méthodologie Design Thinking',
-          duration: '4h 00min',
-          views: 7200,
-          price: 25000,
-          isFree: false,
-          image: require('../../../assets/images/4.webp'),
-          category: 'Workshop',
-          date: '2024-01-08',
-          isNew: true,
-          organizer: {
-            name: 'Design Studio',
-            avatar: require('../../../assets/images/4.webp'),
-          },
-        },
-        {
-          id: '5',
-          title: 'Masterclass Trading Premium - Replay',
-          description: 'Apprenez les stratégies de trading avancées avec des experts',
-          duration: '2h 00min',
-          views: 5600,
-          price: 60000,
-          isFree: false,
-          image: require('../../../assets/images/2.jpg'),
-          category: 'Formation',
-          date: '2024-01-05',
-          isNew: false,
-          organizer: {
-            name: 'Trading Academy',
-            avatar: require('../../../assets/images/2.jpg'),
-          },
-        },
-      ];
-
-      setReplays(mockReplays);
-      console.log('✅ Replays chargés:', mockReplays.length);
+      const response = await eventService.getReplays();
+      
+      if (response.data) {
+        setReplays(response.data.map(transformReplay));
+      }
     } catch (error) {
       console.error('❌ Erreur lors du chargement des replays:', error);
     } finally {

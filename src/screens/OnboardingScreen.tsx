@@ -323,15 +323,13 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
               <View style={styles.quoteContainer}>
                 <Ionicons name="chatbubble" size={24} color="rgba(255, 255, 255, 0.6)" style={styles.quoteIcon} />
                 <Text style={styles.mainDescription}>
-                  La plateforme de streaming d'événements{'\n'}
-                  la plus innovante du Congo
+                  La plateforme de streaming d'événements la plus innovante du Congo
                 </Text>
                 <Ionicons name="chatbubble" size={24} color="rgba(255, 255, 255, 0.6)" style={styles.quoteIconRight} />
               </View>
               <View style={styles.divider} />
               <Text style={styles.subDescription}>
-                Découvrez des concerts, séminaires, festivals{'\n'}
-                et bien plus encore
+                Découvrez des concerts, séminaires, festivals et bien plus encore
               </Text>
             </View>
           </LinearGradient>
@@ -410,7 +408,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     position: 'absolute',
-    top: 70,
+    top: 60,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -430,21 +428,23 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: 40,
-    paddingTop: 120,
+    paddingTop: 200,
   },
   mainTitle: {
-    fontSize: typography.fontSize['4xl'],
+    fontSize: typography.fontSize['3xl'],
     fontFamily: typography.fontFamily.bold,
     color: brandColors.white,
     textAlign: 'center',
     marginBottom: 20,
+    marginTop: 10,
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 6,
     fontWeight: '900',
+    lineHeight: 36,
   },
   descriptionSection: {
     marginHorizontal: 20,
@@ -462,16 +462,15 @@ const styles = StyleSheet.create({
   },
   quoteContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
+    flexWrap: 'wrap',
   },
   quoteIcon: {
-    marginTop: 5,
     marginRight: 10,
   },
   quoteIconRight: {
-    marginTop: 5,
     marginLeft: 10,
     transform: [{ scaleX: -1 }],
   },
@@ -480,10 +479,11 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.semiBold,
     color: brandColors.white,
     textAlign: 'center',
-    lineHeight: typography.lineHeight.tight * typography.fontSize.lg,
+    lineHeight: typography.lineHeight.normal * typography.fontSize.lg,
     flex: 1,
     fontWeight: '600',
     fontStyle: 'italic',
+    flexWrap: 'wrap',
   },
   divider: {
     height: 2,
@@ -571,8 +571,8 @@ const styles = StyleSheet.create({
     left: '25%',
   },
   buttonContainer: {
-    paddingHorizontal: 40,
-    paddingBottom: 50,
+    paddingHorizontal: 50,
+    paddingBottom: 30,
   },
   startButton: {
     borderRadius: borderRadius.xl,
@@ -585,7 +585,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 20,
-    paddingHorizontal: 40,
+    paddingHorizontal: 10,
     backgroundColor: brandColors.primary,
   },
   startButtonText: {

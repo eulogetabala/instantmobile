@@ -1,3 +1,33 @@
+diff --git a/node_modules/react-native/.DS_Store b/node_modules/react-native/.DS_Store
+new file mode 100644
+index 0000000..4964e2b
+Binary files /dev/null and b/node_modules/react-native/.DS_Store differ
+diff --git a/node_modules/react-native/ReactCommon/react/renderer/core/graphicsConversions.h b/node_modules/react-native/ReactCommon/react/renderer/core/graphicsConversions.h
+index bb59351..737a333 100644
+--- a/node_modules/react-native/ReactCommon/react/renderer/core/graphicsConversions.h
++++ b/node_modules/react-native/ReactCommon/react/renderer/core/graphicsConversions.h
+@@ -8,6 +8,7 @@
+ #pragma once
+ 
+ #include <array>
++#include <string>
+ #include <unordered_map>
+ 
+ #include <glog/logging.h>
+@@ -77,7 +78,12 @@ inline folly::dynamic toDynamic(const YGValue& dimension) {
+     case YGUnitPoint:
+       return dimension.value;
+     case YGUnitPercent:
+-      return std::format("{}%", dimension.value);
++      {
++        // Use std::to_string instead of std::format for Android NDK compatibility
++        static thread_local std::string percentBuffer;
++        percentBuffer = std::to_string(dimension.value) + "%";
++        return percentBuffer;
++      }
+   }
+ 
+   return nullptr;
 diff --git a/node_modules/react-native/ReactCommon/react/utils/hash_combine.h b/node_modules/react-native/ReactCommon/react/utils/hash_combine.h
 index dab82ca..6671e00 100644
 --- a/node_modules/react-native/ReactCommon/react/utils/hash_combine.h

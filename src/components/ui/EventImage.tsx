@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
 import { Image, ImageProps, StyleProp, ViewStyle, View, Platform } from 'react-native';
 import { getEventImageSource, getLocalImageByEventId, ImageSource, isValidImageUrl, getAccessibleImageUrl } from '../../utils/imageUtils';
+import VideoThumbnail from './VideoThumbnail';
+import { isVideoUrl } from '../../utils/videoUtils';
 
 interface EventImageProps extends Omit<ImageProps, 'source'> {
   /**
    * URL de l'image du backend (peut être null)
    */
   posterUrl?: string | null;
+  /**
+   * URL de la vidéo (YouTube ou Vimeo) - si fournie, affichera un thumbnail vidéo
+   */
+  videoUrl?: string | null;
   /**
    * ID de l'événement pour la distribution des images de fallback
    */
@@ -31,43 +37,58 @@ interface EventImageProps extends Omit<ImageProps, 'source'> {
    * Callback quand l'image se charge avec succès
    */
   onLoad?: () => void;
+  /**
+   * Callback quand on clique sur le thumbnail vidéo
+   */
+  onVideoPress?: () => void;
 }
 
 /**
  * Composant EventImage - Gère automatiquement le chargement des images d'événements
  * avec fallback intelligent vers les images locales
+ * Peut également afficher un thumbnail vidéo si videoUrl est fourni
  */
 const EventImage: React.FC<EventImageProps> = ({
   posterUrl,
+  videoUrl,
   eventId,
   sectionIndex = 0,
   containerStyle,
   showPlaceholder = false,
   onError,
   onLoad,
+  onVideoPress,
   style,
   ...imageProps
 }) => {
-  // Calculer la source d'image à chaque render pour s'assurer qu'elle est à jour
-  // FORCER l'utilisation de l'image locale avec sectionIndex pour garantir la variété par section
+  // Si une URL vidéo est fournie et valide, afficher un thumbnail vidéo
+  if (videoUrl && isVideoUrl(videoUrl)) {
+    return (
+      <VideoThumbnail
+        videoUrl={videoUrl}
+        style={style}
+        onPress={onVideoPress}
+        showPlayButton={true}
+        resizeMode={imageProps.resizeMode || 'cover'}
+      />
+    );
+  }
+  // Optimisation : Prioriser les images locales pour un chargement instantané
+  // Essayer d'abord l'image locale, puis charger l'image backend en arrière-plan si disponible
   const calculatedSource = React.useMemo(() => {
-    // Pour l'instant, utiliser TOUJOURS l'image locale basée sur eventId et sectionIndex
-    // pour garantir que chaque section a des images différentes
-    // TODO: Réactiver le backend une fois que la distribution fonctionne
-    // if (posterUrl && isValidImageUrl(posterUrl)) {
-    //   const accessibleUrl = getAccessibleImageUrl(posterUrl);
-    //   if (accessibleUrl) {
-    //     return { uri: accessibleUrl };
-    //   }
-    // }
-    // Utiliser directement l'image locale basée sur eventId et sectionIndex
+    // Toujours utiliser l'image locale en premier pour un chargement instantané
     const localImage = getLocalImageByEventId(eventId, sectionIndex);
-    if (__DEV__) {
-      console.log(`🖼️ EventImage - Utilisation image locale uniquement (sectionIndex=${sectionIndex}):`, {
-        eventId: eventId?.substring(0, 20),
-        sectionIndex
-      });
+    
+    // Si on a une URL backend valide, on l'utilisera mais l'image locale sera affichée en premier
+    if (posterUrl && isValidImageUrl(posterUrl)) {
+      const accessibleUrl = getAccessibleImageUrl(posterUrl);
+      if (accessibleUrl) {
+        // Retourner l'URL backend - l'image locale sera utilisée comme defaultSource
+        return { uri: accessibleUrl };
+      }
     }
+    
+    // Pas d'URL backend valide, utiliser uniquement l'image locale
     return localImage;
   }, [posterUrl, eventId, sectionIndex]);
 
@@ -82,59 +103,30 @@ const EventImage: React.FC<EventImageProps> = ({
     return calculatedSource;
   }, [calculatedSource, hasError, eventId, sectionIndex]);
 
-  const handleError = () => {
+  const handleError = (error?: any) => {
     if (!hasError) {
       setHasError(true);
-      if (posterUrl) {
-        setFailedUrls(prev => new Set(prev).add(posterUrl));
-      }
-      
-      if (__DEV__) {
-        const imageNumber = (() => {
-          if (!eventId) return 'unknown';
-          let h = 5381;
-          const idStr = eventId.toString().trim();
-          for (let i = 0; i < idStr.length; i++) {
-            h = ((h << 5) + h) + idStr.charCodeAt(i);
-          }
-          return (Math.abs(h) % 9) + 1;
-        })();
-        console.log('⚠️ EventImage - Erreur chargement image backend:', {
-          posterUrl: posterUrl?.substring(0, 50),
-          eventId: eventId?.substring(0, 20),
-          eventIdFull: eventId,
-          imageNumber,
-          platform: Platform.OS
-        });
-      }
+      // Logs réduits pour améliorer les performances
+      // if (__DEV__) {
+      //   console.log('⚠️ EventImage - Erreur chargement, utilisation image locale');
+      // }
     }
     onError?.();
   };
 
   const handleLoad = () => {
     setHasError(false);
-    if (__DEV__) {
-      const sourceType = typeof finalSource === 'object' && 'uri' in finalSource ? 'backend' : 'local';
-      console.log('✅ EventImage - Image chargée:', {
-        eventId: eventId?.substring(0, 20),
-        sourceType,
-        hasPosterUrl: !!posterUrl
-      });
-    }
+    // Logs réduits pour améliorer les performances
+    // if (__DEV__) {
+    //   console.log('✅ EventImage - Image chargée');
+    // }
     onLoad?.();
   };
 
   // Toujours utiliser une image locale différente pour le defaultSource basée sur eventId et sectionIndex
+  // Cela garantit un affichage instantané pendant le chargement de l'image backend
   const defaultSource = React.useMemo(() => {
-    const local = getLocalImageByEventId(eventId, sectionIndex);
-    if (__DEV__) {
-      console.log(`🎯 EventImage defaultSource pour eventId=${eventId?.substring(0, 20)} section=${sectionIndex}:`, {
-        eventId: eventId?.substring(0, 20),
-        sectionIndex,
-        isLocalImage: true
-      });
-    }
-    return local;
+    return getLocalImageByEventId(eventId, sectionIndex);
   }, [eventId, sectionIndex]);
 
   // Si c'est une image locale (pas d'URI), utiliser directement
@@ -151,23 +143,16 @@ const EventImage: React.FC<EventImageProps> = ({
     return `event-img-${eventId}`;
   }, [eventId]);
 
-  if (__DEV__) {
-    const imageNumber = eventId ? (() => {
-      let h = 5381;
-      const idStr = eventId.toString().trim();
-      for (let i = 0; i < idStr.length; i++) {
-        h = ((h << 5) + h) + idStr.charCodeAt(i);
-      }
-      return (Math.abs(h) % 9) + 1;
-    })() : 'unknown';
-    
-    const isLocalImage = typeof source !== 'object' || !('uri' in source);
-    console.log(`🖼️ EventImage render: eventId=${eventId?.substring(0, 20)}, key=${imageKey}, imageNumber=${imageNumber}, sourceType=${isLocalImage ? 'local' : 'uri'}, hasPosterUrl=${!!posterUrl}, source=${isLocalImage ? 'local-image' : 'backend-url'}`);
-  }
+  // Logs réduits pour améliorer les performances
+  // if (__DEV__) {
+  //   const isLocalImage = typeof source !== 'object' || !('uri' in source);
+  //   console.log(`🖼️ EventImage render: eventId=${eventId?.substring(0, 20)}, sourceType=${isLocalImage ? 'local' : 'uri'}`);
+  // }
 
-  // CRITIQUE : Utiliser cache="reload" pour iOS si c'est une URI backend pour éviter le cache
+  // Optimisation : Utiliser le cache par défaut pour améliorer les performances
+  // 'default' permet au système de gérer le cache intelligemment
   const imagePropsWithCache = typeof source === 'object' && 'uri' in source
-    ? { ...imageProps, cache: 'reload' as const }
+    ? { ...imageProps, cache: 'default' as const }
     : imageProps;
 
   return (
@@ -202,5 +187,14 @@ const EventImage: React.FC<EventImageProps> = ({
   );
 };
 
-export default EventImage;
+// Optimisation : Utiliser React.memo pour éviter les re-renders inutiles
+export default React.memo(EventImage, (prevProps, nextProps) => {
+  // Ne re-render que si les props importantes changent
+  return (
+    prevProps.posterUrl === nextProps.posterUrl &&
+    prevProps.eventId === nextProps.eventId &&
+    prevProps.sectionIndex === nextProps.sectionIndex &&
+    prevProps.videoUrl === nextProps.videoUrl
+  );
+});
 

@@ -5,24 +5,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 
 // Import des écrans
-import GuestHomeScreen from '../screens/guest/GuestHomeScreen';
+import HomeScreen from '../screens/HomeScreen';
 import GuestEventsScreen from '../screens/guest/GuestEventsScreen';
 import GuestLiveScreen from '../screens/guest/GuestLiveScreen';
 import GuestReplaysScreen from '../screens/guest/GuestReplaysScreen';
 import GuestCategoriesScreen from '../screens/guest/GuestCategoriesScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 import EventDetailsScreen from '../screens/events/EventDetailsScreen';
 import StreamingScreen from '../screens/streaming/StreamingScreen';
 
+import { RootStackParamList } from '../types';
+
 const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<RootStackParamList>();
 
 // Stack pour les événements
 const GuestEventsStack: React.FC = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="EventsList" component={GuestEventsScreen} />
+      <Stack.Screen name="EventList" component={GuestEventsScreen} />
       <Stack.Screen 
         name="EventDetails" 
         component={EventDetailsScreen}
@@ -43,7 +47,7 @@ const GuestLiveStack: React.FC = () => {
         name="Streaming" 
         component={StreamingScreen}
         options={{
-          presentation: 'fullScreenModal',
+          presentation: 'modal',
         }}
       />
     </Stack.Navigator>
@@ -59,7 +63,7 @@ const GuestReplaysStack: React.FC = () => {
         name="Streaming" 
         component={StreamingScreen}
         options={{
-          presentation: 'fullScreenModal',
+          presentation: 'modal',
         }}
       />
     </Stack.Navigator>
@@ -112,7 +116,7 @@ const GuestTabNavigator: React.FC = () => {
     >
       <Tab.Screen 
         name="Home" 
-        component={GuestHomeScreen}
+        component={HomeScreen}
         options={{
           tabBarLabel: 'Accueil',
         }}
@@ -170,7 +174,7 @@ const GuestNavigator: React.FC = () => {
         name="Streaming" 
         component={StreamingScreen}
         options={{
-          presentation: 'fullScreenModal',
+          presentation: 'modal',
         }}
       />
       <Stack.Screen 
@@ -183,6 +187,20 @@ const GuestNavigator: React.FC = () => {
       <Stack.Screen 
         name="Register" 
         component={RegisterScreen}
+        options={{
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen 
+        name="ForgotPassword" 
+        component={ForgotPasswordScreen}
+        options={{
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen 
+        name="ResetPassword" 
+        component={ResetPasswordScreen}
         options={{
           presentation: 'modal',
         }}

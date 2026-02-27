@@ -1,12 +1,12 @@
 import { apiService } from '../api';
-import { APIResponse, PaginationResponse } from '../../types';
+import { ApiResponse, PaginationResponse } from '../../types';
 
 export interface Category {
   id: string;
   name: string;
   icon: string;
   color: string;
-  gradient: string[];
+  gradient: [string, string, ...string[]];
   eventCount: number;
   description: string;
   value: string;
@@ -31,9 +31,9 @@ class CategoryService {
   /**
    * Récupère toutes les catégories avec le nombre d'événements
    */
-  async getCategories(): Promise<APIResponse<{ categories: Category[]; total: number; totalEvents: number }>> {
+  async getCategories(): Promise<ApiResponse<{ categories: Category[]; total: number; totalEvents: number }>> {
     try {
-      const response = await apiService.get<{ categories: Category[]; total: number; totalEvents: number }>('/categories');
+      const response = await apiService.getWithRetry<{ categories: Category[]; total: number; totalEvents: number }>('/categories');
       return response;
     } catch (error) {
       console.error('Erreur lors de la récupération des catégories:', error);
@@ -66,7 +66,7 @@ class CategoryService {
   /**
    * Récupère les statistiques d'une catégorie
    */
-  async getCategoryStats(categoryId: string): Promise<APIResponse<CategoryStats>> {
+  async getCategoryStats(categoryId: string): Promise<ApiResponse<CategoryStats>> {
     try {
       const response = await apiService.get<CategoryStats>(`/categories/${categoryId}/stats`);
       return response;
@@ -79,7 +79,7 @@ class CategoryService {
   /**
    * Recherche des catégories par nom
    */
-  async searchCategories(query: string): Promise<APIResponse<{ categories: Category[]; total: number; totalEvents: number }>> {
+  async searchCategories(query: string): Promise<ApiResponse<{ categories: Category[]; total: number; totalEvents: number }>> {
     try {
       const response = await apiService.get<{ categories: Category[]; total: number; totalEvents: number }>(`/categories?search=${encodeURIComponent(query)}`);
       return response;
@@ -92,7 +92,7 @@ class CategoryService {
   /**
    * Récupère les catégories les plus populaires (avec le plus d'événements)
    */
-  async getPopularCategories(limit: number = 6): Promise<APIResponse<{ categories: Category[]; total: number; totalEvents: number }>> {
+  async getPopularCategories(limit: number = 6): Promise<ApiResponse<{ categories: Category[]; total: number; totalEvents: number }>> {
     try {
       const response = await apiService.get<{ categories: Category[]; total: number; totalEvents: number }>(`/categories?limit=${limit}&sort=popular`);
       return response;
@@ -105,7 +105,7 @@ class CategoryService {
   /**
    * Récupère les catégories avec des événements en cours
    */
-  async getActiveCategories(): Promise<APIResponse<{ categories: Category[]; total: number; totalEvents: number }>> {
+  async getActiveCategories(): Promise<ApiResponse<{ categories: Category[]; total: number; totalEvents: number }>> {
     try {
       const response = await apiService.get<{ categories: Category[]; total: number; totalEvents: number }>('/categories?status=live');
       return response;

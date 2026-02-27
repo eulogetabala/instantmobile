@@ -19,6 +19,7 @@ import { useFavorites } from '../../hooks/useFavorites';
 import { brandColors, typography, borderRadius, shadows } from '../../constants/theme';
 import { eventService } from '../../services/events';
 import { Event as ApiEvent } from '../../types';
+import { getEventImage } from '../../utils/image';
 import { EVENT_STATUSES, getEventButtonText, getEventButtonAction } from '../../services/events/eventCategories';
 
 const { width } = Dimensions.get('window');
@@ -61,7 +62,88 @@ const GuestEventsScreen: React.FC = () => {
       console.log('📂 Catégorie sélectionnée:', selectedCategory);
       console.log('🔍 Filtre sélectionné:', selectedFilter);
       
-      // Charger les événements selon le filtre et la catégorie sélectionnés
+      // Normaliser la valeur de catégorie pour correspondre aux valeurs enum du backend
+      const normalizeCategory = (cat: string | null): string | undefined => {
+        if (!cat) return undefined;
+        // Convertir en minuscules et enlever les accents
+        const normalized = cat
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim();
+        
+        // Mapping des noms de catégories vers les valeurs enum
+        const categoryMap: Record<string, string> = {
+          'concert': 'concert',
+          'theater': 'theater',
+          'theatre': 'theater',
+          'seminar': 'seminar',
+          'seminaire': 'seminar',
+          'sport': 'sport',
+          'festival': 'festival',
+          'conference': 'conference',
+          'workshop': 'workshop',
+          'atelier': 'workshop',
+          'exhibition': 'exhibition',
+          'exposition': 'exhibition',
+          'formation': 'formation',
+          'gospel': 'gospel',
+          'other': 'other',
+          'autre': 'other',
+        };
+        
+        return categoryMap[normalized] || normalized;
+      };
+      
+      const normalizedCategory = normalizeCategory(selectedCategory);
+      
+      // Si une catégorie est sélectionnée, utiliser l'endpoint /api/events avec le filtre category
+      if (normalizedCategory) {
+        console.log('📡 Appel API: getEvents avec catégorie', normalizedCategory);
+        
+        // Déterminer le statut selon le filtre
+        let status = 'published';
+        if (selectedFilter === 'live') {
+          status = 'live';
+        } else if (selectedFilter === 'past') {
+          status = 'ended';
+        }
+        
+        // Utiliser getEvents avec les filtres appropriés
+        const filters: any = {
+          category: normalizedCategory,
+          status: status,
+        };
+        
+        // Si c'est "all", on ne filtre pas par statut
+        if (selectedFilter === 'all') {
+          delete filters.status;
+        }
+        
+        const response = await eventService.getEvents(filters);
+        const events: ApiEvent[] = response.events || [];
+        
+        const transformedEvents: Event[] = events.map((event: ApiEvent) => ({
+          id: event.id,
+          title: event.title,
+          description: event.description || event.shortDescription || '',
+          date: new Date(event.startDate).toLocaleDateString('fr-FR'),
+          time: new Date(event.startDate).toLocaleTimeString('fr-FR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
+          price: event.pricing?.isFree ? 0 : (event.pricing?.price?.amount || 0),
+          isFree: event.pricing?.isFree || false,
+          image: getEventImage(event.media?.poster),
+          category: event.category,
+          isLive: event.streaming?.isLive || event.status === 'live',
+        }));
+        
+        setEvents(transformedEvents);
+        return;
+      }
+      
+      // Sinon, utiliser les méthodes spécifiques comme avant
       let response;
       
       // Charger les événements selon le statut sélectionné
@@ -95,11 +177,6 @@ const GuestEventsScreen: React.FC = () => {
         }
       }
       
-      // Filtrer par catégorie si sélectionnée
-      if (selectedCategory) {
-        events = events.filter((event: ApiEvent) => event.category === selectedCategory);
-      }
-      
       const transformedEvents: Event[] = events.map((event: ApiEvent) => ({
         id: event.id,
         title: event.title,
@@ -111,7 +188,7 @@ const GuestEventsScreen: React.FC = () => {
         }),
         price: event.pricing?.isFree ? 0 : (event.pricing?.price?.amount || 0),
         isFree: event.pricing?.isFree || false,
-        image: require('../../../assets/images/1.jpg'), // Fallback image
+        image: getEventImage(event.media?.poster),
         category: event.category,
         isLive: event.streaming?.isLive || false,
         organizer: event.organizer?.name || (event.createdBy ? `${event.createdBy.firstName} ${event.createdBy.lastName}` : 'Organisateur'),
@@ -320,6 +397,37 @@ const GuestEventsScreen: React.FC = () => {
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* Filtres de catégorie actifs */}
+        {selectedCategory && (
+          <View style={styles.activeCategoryContainer}>
+            <LinearGradient
+              colors={[brandColors.primary, '#FF9800']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.activeCategoryGradient}
+            >
+              <View style={styles.activeCategoryContent}>
+                <View style={styles.activeCategoryTextContainer}>
+                  <Ionicons name="pricetag" size={16} color={brandColors.white} />
+                  <Text style={styles.activeCategoryLabel}>
+                    Catégorie : <Text style={styles.activeCategoryName}>{selectedCategory}</Text>
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.clearCategoryButton}
+                  onPress={() => {
+                    setSelectedCategory(null);
+                    // Mettre à jour les paramètres de navigation pour éviter de recharger la catégorie au prochain rendu
+                    navigation.setParams({ category: null } as any);
+                  }}
+                >
+                  <Ionicons name="close-circle" size={24} color={brandColors.white} />
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
+
         {/* Filtres */}
         <View style={styles.filtersContainer}>
           {EVENT_STATUSES.map((status) => (
@@ -430,6 +538,38 @@ const styles = StyleSheet.create({
     backgroundColor: brandColors.white,
     borderWidth: 1,
     borderColor: brandColors.lightGray,
+  },
+  activeCategoryContainer: {
+    paddingHorizontal: 20,
+    marginTop: 15,
+  },
+  activeCategoryGradient: {
+    borderRadius: borderRadius.lg,
+    ...shadows.sm,
+  },
+  activeCategoryContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+  },
+  activeCategoryTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activeCategoryLabel: {
+    fontSize: typography.fontSize.sm,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontFamily: 'Montserrat_500Medium',
+  },
+  activeCategoryName: {
+    fontFamily: 'Montserrat_700Bold',
+    color: brandColors.white,
+  },
+  clearCategoryButton: {
+    padding: 2,
   },
   activeFilterButton: {
     backgroundColor: brandColors.primary,

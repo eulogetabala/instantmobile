@@ -30,7 +30,7 @@
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "buildToolsVersion": "35.0.0",
-            "ndkVersion": "25.2.9519653",  // Compatible avec React Native 0.81.4
+            "ndkVersion": "26.1.10909125",  // Clang 17.0.2 - Support complet C++20 concepts
             "newArchEnabled": true  // Requis pour react-native-reanimated et react-native-worklets
           }
         }

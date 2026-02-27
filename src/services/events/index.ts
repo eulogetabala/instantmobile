@@ -67,7 +67,7 @@ class EventService {
   // Obtenir les événements en vedette (Premium)
   async getFeaturedEvents(limit = 10): Promise<{ events: Event[]; stats: any }> {
     try {
-      const response = await apiService.get<{ events: Event[]; stats: any }>(
+      const response = await apiService.getWithRetry<{ events: Event[]; stats: any }>(
         `/events/featured?limit=${limit}`
       );
 
@@ -103,7 +103,7 @@ class EventService {
   // Obtenir les événements en cours (live)
   async getLiveEvents(): Promise<{ events: Event[]; stats: any }> {
     try {
-      const response = await apiService.get<{ events: Event[]; stats: any }>(
+      const response = await apiService.getWithRetry<{ events: Event[]; stats: any }>(
         '/events/live'
       );
 
@@ -163,16 +163,21 @@ class EventService {
     }
   }
 
-  // Obtenir les détails d'un événement
-  async getEventById(eventId: string): Promise<{ event: Event; hasAccess: boolean }> {
+  // Obtenir les détails d'un événement avec retry automatique pour les erreurs réseau
+  async getEventById(eventId: string, retryOnNetworkError = true): Promise<{ event: Event; hasAccess: boolean }> {
     try {
       if (!eventId || eventId.trim().length === 0) {
         throw new Error('ID d\'événement manquant ou invalide');
       }
 
-      const response = await apiService.get<{ event: Event; hasAccess: boolean }>(
-        `/events/${eventId.trim()}`
-      );
+      // Utiliser getWithRetry pour les erreurs réseau (timeout, ERR_NETWORK, etc.)
+      const response = retryOnNetworkError
+        ? await apiService.getWithRetry<{ event: Event; hasAccess: boolean }>(
+            `/events/${eventId.trim()}`
+          )
+        : await apiService.get<{ event: Event; hasAccess: boolean }>(
+            `/events/${eventId.trim()}`
+          );
 
       if (response.success && response.data) {
         return response.data;
@@ -180,12 +185,32 @@ class EventService {
         throw new Error(response.error?.message || 'Événement non trouvé');
       }
     } catch (error: any) {
-      console.error('Erreur getEventById:', {
-        eventId,
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
+      // Détecter les erreurs réseau
+      const isNetworkError = 
+        error.code === 'ERR_NETWORK' || 
+        error.code === 'ECONNABORTED' ||
+        error.message === 'Network Error' ||
+        !error.response;
+      
+      // Logger avec plus de détails pour le diagnostic
+      if (isNetworkError) {
+        console.error('🌐 Erreur réseau getEventById:', {
+          eventId,
+          code: error.code,
+          message: error.message,
+          baseURL: (error.config?.baseURL || 'N/A'),
+          url: error.config?.url || 'N/A',
+          suggestion: 'Le backend n\'est peut-être pas accessible. Vérifiez que le serveur est démarré et que l\'IP est correcte.'
+        });
+      } else {
+        console.error('Erreur getEventById:', {
+          eventId,
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+          code: error.code
+        });
+      }
       throw error;
     }
   }
@@ -345,7 +370,7 @@ class EventService {
   // Obtenir les événements gratuits
   async getFreeEvents(limit = 10): Promise<{ events: Event[]; stats: any }> {
     try {
-      const response = await apiService.get<{ events: Event[]; stats: any }>(
+      const response = await apiService.getWithRetry<{ events: Event[]; stats: any }>(
         `/events/free?limit=${limit}`
       );
 

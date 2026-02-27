@@ -47,32 +47,126 @@ export interface MobileMoneyPayment {
 }
 
 class PaymentService {
-  // Initier un paiement
-  async initiatePayment(paymentRequest: PaymentRequest): Promise<PaymentResponse> {
+  // Créer un paiement (correspond à POST /api/payments/create)
+  async createPayment(paymentRequest: PaymentRequest): Promise<{
+    payment: {
+      id: string;
+      paymentId: string;
+      amount: number;
+      currency: string;
+      method: string;
+      status: string;
+      expiresAt: string;
+    };
+  }> {
     try {
-      const response = await apiService.post<PaymentResponse>(
-        '/payments/initiate',
-        paymentRequest
+      const { phoneNumber, email, ...rest } = paymentRequest;
+      const paymentDetails: any = {};
+      
+      if (phoneNumber) {
+        paymentDetails.phoneNumber = phoneNumber;
+      }
+      if (email) {
+        paymentDetails.email = email;
+      }
+
+      const response = await apiService.post<{
+        payment: {
+          id: string;
+          paymentId: string;
+          amount: number;
+          currency: string;
+          method: string;
+          status: string;
+          expiresAt: string;
+        };
+      }>(
+        '/payments/create',
+        {
+          ...rest,
+          paymentDetails,
+        }
       );
 
       if (response.success && response.data) {
         return response.data;
       } else {
-        throw new Error(response.error?.message || 'Erreur lors de l\'initiation du paiement');
+        throw new Error(response.error?.message || 'Erreur lors de la création du paiement');
       }
+    } catch (error) {
+      console.error('Erreur createPayment:', error);
+      throw error;
+    }
+  }
+
+  // Traiter un paiement (correspond à POST /api/payments/:paymentId/process)
+  async processPayment(paymentId: string, paymentData: any): Promise<PaymentResponse> {
+    try {
+      const response = await apiService.post<PaymentResponse>(
+        `/payments/${paymentId}/process`,
+        { paymentData }
+      );
+
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.error?.message || 'Erreur lors du traitement du paiement');
+      }
+    } catch (error) {
+      console.error('Erreur processPayment:', error);
+      throw error;
+    }
+  }
+
+  // Initier un paiement (wrapper qui combine create + process)
+  async initiatePayment(paymentRequest: PaymentRequest): Promise<PaymentResponse> {
+    try {
+      // 1. Créer le paiement
+      const createResponse = await this.createPayment(paymentRequest);
+      const paymentId = createResponse.payment.id;
+
+      // 2. Préparer les données de paiement selon la méthode
+      const paymentData: any = {};
+      if (paymentRequest.phoneNumber) {
+        paymentData.phoneNumber = paymentRequest.phoneNumber;
+        paymentData.operator = paymentRequest.method === 'mtn_momo' ? 'mtn' : 
+                              paymentRequest.method === 'airtel_money' ? 'airtel' : 'mtn';
+      }
+      if (paymentRequest.email) {
+        paymentData.email = paymentRequest.email;
+      }
+
+      // 3. Traiter le paiement
+      const processResponse = await this.processPayment(paymentId, paymentData);
+      
+      return {
+        ...processResponse,
+        paymentId: createResponse.payment.paymentId,
+      };
     } catch (error) {
       console.error('Erreur initiatePayment:', error);
       throw error;
     }
   }
 
-  // Vérifier le statut d'un paiement
+  // Vérifier le statut d'un paiement (utilise GET /api/payments/:paymentId)
   async checkPaymentStatus(paymentId: string): Promise<PaymentStatus> {
     try {
-      const response = await apiService.get<PaymentStatus>(`/payments/${paymentId}/status`);
+      const response = await apiService.get<{ payment: Payment }>(`/payments/${paymentId}`);
 
       if (response.success && response.data) {
-        return response.data;
+        const payment = response.data.payment;
+        return {
+          paymentId: payment.id,
+          status: payment.status as any,
+          amount: payment.amount,
+          currency: payment.currency,
+          method: payment.method,
+          transactionId: payment.transactionId,
+          paidAt: payment.paidAt,
+          failureReason: payment.failureReason,
+          tickets: payment.tickets || [],
+        };
       } else {
         throw new Error(response.error?.message || 'Erreur lors de la vérification du statut');
       }

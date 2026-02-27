@@ -133,7 +133,13 @@ class NotificationService {
         platform: Platform.OS,
         deviceId: Device.osInternalBuildId,
       });
-    } catch (error) {
+    } catch (error: any) {
+      // Ne pas logger les erreurs 401 comme des erreurs (utilisateur simplement non connecté)
+      // L'utilisateur pourra enregistrer le token après connexion
+      if (error?.response?.status === 401) {
+        // Utilisateur non authentifié, c'est normal - on peut enregistrer le token plus tard après connexion
+        return;
+      }
       console.error('Erreur lors de l\'envoi du token au serveur:', error);
     }
   }
@@ -230,7 +236,12 @@ class NotificationService {
       } else {
         return [];
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Ne pas logger les erreurs 401 comme des erreurs (utilisateur simplement non connecté)
+      if (error?.response?.status === 401) {
+        // Utilisateur non authentifié, retourner un tableau vide
+        return [];
+      }
       console.error('Erreur lors de la récupération de l\'historique:', error);
       return [];
     }

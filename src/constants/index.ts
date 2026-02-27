@@ -8,38 +8,72 @@ export const APP_CONFIG = {
   website: 'https://instantplus.cd',
 };
 
+// URLs des backends
+const RENDER_BACKEND_URL = 'https://instant-backend-1.onrender.com/api';
+const LOCAL_BACKEND_PORT = 5001;
+
 // Configuration de l'API via variables d'environnement
-// Priorité: EXPO_PUBLIC_API_URL > EXPO_PUBLIC_USE_LOCALHOST > valeur par défaut
+// Priorité: EXPO_PUBLIC_API_URL > EXPO_PUBLIC_USE_LOCALHOST > détection automatique
 const getApiBaseURL = (): string => {
-  // Si une URL d'API est explicitement définie, l'utiliser
+  // Si une URL d'API est explicitement définie, l'utiliser (priorité absolue)
   if (process.env.EXPO_PUBLIC_API_URL) {
+    console.log('🌐 API URL from EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL);
     return process.env.EXPO_PUBLIC_API_URL;
   }
   
-  // Sinon, utiliser la logique USE_LOCALHOST
-  const useLocalhost = process.env.EXPO_PUBLIC_USE_LOCALHOST === 'true' || 
-                       (process.env.EXPO_PUBLIC_USE_LOCALHOST === undefined && true); // Par défaut: true pour dev
+  // En production (build release), utiliser Render directement
+  if (!__DEV__) {
+    console.log('🌐 API URL (production - Render):', RENDER_BACKEND_URL);
+    return RENDER_BACKEND_URL;
+  }
+  
+  // En développement, essayer local d'abord
+  const useLocalhost = process.env.EXPO_PUBLIC_USE_LOCALHOST !== 'false'; // true par défaut en dev
   
   if (useLocalhost) {
     // Pour Android emulator: utiliser 10.0.2.2
     // Pour appareil physique: utiliser l'IP locale du Mac/PC
     const localIP = process.env.EXPO_PUBLIC_LOCAL_IP;
-    if (localIP) {
-      return `http://${localIP}:5001/api`;
+    
+    // Détecter et remplacer les anciennes IPs connues
+    const oldIPs = ['192.168.1.96', '192.168.1.103', '192.168.1.88', '192.168.1.105', '192.168.1.93'];
+    if (localIP && oldIPs.includes(localIP)) {
+      console.warn(`⚠️ Ancienne IP détectée (${localIP}), recherche d'une IP valide...`);
+      // Ne pas utiliser directement une IP fixe, laisser findWorkingBackend la détecter
     }
-    // Par défaut pour développement local
-    return 'http://localhost:5001/api';
+    
+    if (localIP && !oldIPs.includes(localIP)) {
+      const url = `http://${localIP}:${LOCAL_BACKEND_PORT}/api`;
+      console.log('🌐 API URL (local IP configurée):', url);
+      return url;
+    }
+    
+    // Si pas d'IP configurée, essayer de détecter automatiquement l'IP
+    // Liste des IPs possibles à tester (les plus récentes en premier)
+    const possibleIPs = ['192.168.1.119', '192.168.1.93', '192.168.1.96', '192.168.1.103'];
+    const detectedIP = possibleIPs[0]; // Utiliser la plus récente par défaut (192.168.1.119)
+    const detectedUrl = `http://${detectedIP}:${LOCAL_BACKEND_PORT}/api`;
+    console.log('🌐 API URL (IP par défaut - dev):', detectedUrl);
+    console.log('💡 Si cette IP ne fonctionne pas, l\'app essaiera automatiquement Render');
+    return detectedUrl;
   }
   
-  // URL de production
-  return 'https://instant-backend-2m5j.onrender.com/api';
+  // Si USE_LOCALHOST est explicitement false, utiliser Render
+  console.log('🌐 API URL (Render - USE_LOCALHOST=false):', RENDER_BACKEND_URL);
+  return RENDER_BACKEND_URL;
 };
 
+// Calculer l'URL de base une seule fois au chargement du module
+const calculatedBaseURL = getApiBaseURL();
+
 export const API_CONFIG = {
-  baseURL: getApiBaseURL(),
-  timeout: 30000,
-  retryAttempts: 3,
+  baseURL: calculatedBaseURL,
+  timeout: 15000, // Augmenté à 15 secondes pour les connexions lentes
+  retryAttempts: 3, // Augmenté à 3 tentatives pour une meilleure résilience
 };
+
+// Log pour confirmer l'URL utilisée
+console.log('🔧 API_CONFIG initialisé avec baseURL:', calculatedBaseURL);
 
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'instant_plus_auth_token',
@@ -60,6 +94,8 @@ export const EVENT_CATEGORIES = [
   { value: 'theater', label: 'Théâtre', icon: '🎭' },
   { value: 'conference', label: 'Conférence', icon: '💼' },
   { value: 'workshop', label: 'Atelier', icon: '🔧' },
+  { value: 'formation', label: 'Formation', icon: '🎓' },
+  { value: 'gospel', label: 'Gospel', icon: '🙏' },
   { value: 'exhibition', label: 'Exposition', icon: '🖼️' },
   { value: 'other', label: 'Autre', icon: '📅' },
 ] as const;

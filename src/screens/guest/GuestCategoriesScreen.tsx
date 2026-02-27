@@ -13,6 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../../contexts/AuthContext';
 import { brandColors, typography, borderRadius, shadows } from '../../constants/theme';
 import { categoryService, Category } from '../../services/categories';
 
@@ -22,6 +23,7 @@ const { width } = Dimensions.get('window');
 
 const GuestCategoriesScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { isAuthenticated } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,10 +115,18 @@ const GuestCategoriesScreen: React.FC = () => {
   const handleCategoryPress = (category: Category) => {
     if (category.eventCount > 0) {
       // Navigation vers la page des événements avec filtre par catégorie
-      (navigation as any).navigate('Events', { 
-        filter: 'all', 
-        category: category.value,
-        categoryName: category.name 
+      const tabNavigator = isAuthenticated ? 'MainTabs' : 'GuestTabs';
+
+      (navigation as any).navigate(tabNavigator, { 
+        screen: 'Events',
+        params: {
+          screen: 'EventList',
+          params: {
+            filter: 'all', 
+            category: category.value,
+            categoryName: category.name 
+          }
+        }
       });
     } else {
       Alert.alert(

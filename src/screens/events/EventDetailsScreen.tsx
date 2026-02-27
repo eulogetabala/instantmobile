@@ -13,6 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import NetInfo from '@react-native-community/netinfo';
 import { brandColors, typography, borderRadius, shadows } from '../../constants/theme';
 import { useEventAccess } from '../../hooks/useEventAccess';
 import { useStreamingAccess } from '../../hooks/useStreamingAccess';
@@ -22,33 +23,17 @@ import AccessRequiredModal from '../../components/ui/AccessRequiredModal';
 import { eventService } from '../../services/events';
 import { streamingAccessService } from '../../services/streaming/streamingAccess';
 import EventImage from '../../components/ui/EventImage';
+import Button from '../../components/ui/Button';
 
 const { width } = Dimensions.get('window');
-
-interface EventDetails {
-  id: string;
-  title: string;
-  description: string;
-  longDescription: string;
-  date: string;
-  time: string;
-  price: number;
-  isFree: boolean;
-  image: any;
-  category: string;
-  isLive: boolean;
-  organizer: string;
-  location: string;
-  duration: string;
-  maxParticipants?: number;
-  currentParticipants?: number;
-}
 
 const EventDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const [event, setEvent] = useState<EventDetails | null>(null);
+  const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
+  const [error, setError] = useState<{ message: string; isNetworkError: boolean } | null>(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [userTickets, setUserTickets] = useState<any[]>([]);
   const { checkEventAccess, canJoinEvent, getAccessMessage, getAccessAction } = useEventAccess();
@@ -60,11 +45,17 @@ const EventDetailsScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (event && isAuthenticated) {
-      loadUserTickets();
-      checkStreamingAccess(event.id);
+    if (event) {
+      const isFree = event.pricing?.isFree === true;
+      
+      // Pour les événements gratuits, l'accès est automatiquement autorisé
+      // Pour les événements payants, vérifier l'accès si l'utilisateur est connecté
+      if (isAuthenticated && !isFree) {
+        loadUserTickets();
+        checkStreamingAccess(event.id);
+      }
     }
-  }, [event, isAuthenticated, checkStreamingAccess]);
+  }, [event?.id, isAuthenticated, checkStreamingAccess]);
 
   useEffect(() => {
     // Vérifier l'accès après le chargement de l'événement
@@ -75,107 +66,81 @@ const EventDetailsScreen: React.FC = () => {
 
   // Afficher la modal automatiquement si l'utilisateur n'est pas connecté
   useEffect(() => {
-    if (event && !loading && !isAuthenticated && (event.isFree || event.isLive)) {
+    const eventIsLive = event?.streaming?.isLive || event?.status === 'live';
+    if (event && !loading && !isAuthenticated && (event.pricing?.isFree || eventIsLive)) {
       setShowAccessModal(true);
     }
   }, [event, loading, isAuthenticated]);
 
-  const loadEventDetails = async () => {
+  const loadEventDetails = async (retry = false) => {
     try {
+      setError(null);
+      setLoading(true);
+      
       const eventId = route.params?.eventId;
       
       if (!eventId) {
         console.error('ID d\'événement manquant');
+        setError({ message: 'ID d\'événement manquant', isNetworkError: false });
         setLoading(false);
         return;
       }
 
-      // Charger les détails de l'événement depuis l'API
-      const response = await eventService.getEventById(eventId);
+      // Vérifier la connectivité réseau avant de faire la requête
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected) {
+        setError({ 
+          message: 'Aucune connexion réseau. Vérifiez votre connexion internet.', 
+          isNetworkError: true 
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Charger les détails de l'événement depuis l'API avec retry automatique
+      // Le retry est activé par défaut dans getEventById pour les erreurs réseau
+      if (retry) {
+        setRetrying(true);
+      }
+      
+      const response = await eventService.getEventById(eventId, true);
       
       if (response.event) {
-        // Utiliser l'image du backend si elle existe et est valide, sinon utiliser une image locale différente
-        const posterUrl = response.event.media?.poster;
-        
-        // Transformer les données de l'API vers le format attendu par l'interface
-        const eventDetails: EventDetails = {
-          id: response.event.id,
-          title: response.event.title,
-          description: response.event.description,
-          longDescription: response.event.description, // Utiliser la description comme description longue
-          date: new Date(response.event.startDate).toLocaleDateString('fr-FR', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-          }),
-          time: new Date(response.event.startDate).toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit'
-          }),
-          price: response.event.pricing?.isFree ? 0 : (response.event.pricing?.price?.amount || 0),
-          isFree: response.event.pricing?.isFree || false,
-          image: { posterUrl, eventId: response.event.id || eventId }, // Image du backend ou fallback local différente par événement
-          category: response.event.category,
-          isLive: response.event.streaming?.isLive || false,
-          organizer: response.event.organizer 
-            ? (typeof response.event.organizer === 'object' 
-                ? `${response.event.organizer.firstName || ''} ${response.event.organizer.lastName || ''}`.trim() 
-                : 'Organisateur inconnu')
-            : (response.event.createdBy
-                ? `${response.event.createdBy.firstName || ''} ${response.event.createdBy.lastName || ''}`.trim()
-                : 'Organisateur inconnu'),
-          location: response.event.location?.type === 'online' ? 'En ligne' : (response.event.location?.address?.city || 'Lieu à confirmer'),
-          duration: response.event.duration ? `${Math.round(response.event.duration / (1000 * 60 * 60))}h` : 'Durée non spécifiée',
-          maxParticipants: response.event.capacity?.total || 0,
-          currentParticipants: response.event.streaming?.currentViewers || 0,
-        };
-        
-        setEvent(eventDetails);
+        // Utiliser directement les données de l'API sans transformation - comme HomeScreen
+        setEvent(response.event);
+        setError(null);
+        setRetrying(false);
       } else {
         console.error('Événement non trouvé');
-        // Fallback vers des données mockées en cas d'erreur
-        setEvent({
-          id: eventId,
-          title: 'Événement non trouvé',
-          description: 'Cet événement n\'existe pas ou a été supprimé',
-          longDescription: 'Désolé, cet événement n\'est plus disponible.',
-          date: 'Date inconnue',
-          time: 'Heure inconnue',
-          price: 0,
-          isFree: true,
-          image: require('../../../assets/images/1.jpg'),
-          category: 'Autre',
-          isLive: false,
-          organizer: 'Organisateur inconnu',
-          location: 'Lieu inconnu',
-          duration: 'Durée inconnue',
-          maxParticipants: 0,
-          currentParticipants: 0,
-        });
+        setError({ message: 'Événement non trouvé', isNetworkError: false });
+        setRetrying(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors du chargement des détails de l\'événement:', error);
       
-      // Fallback vers des données mockées en cas d'erreur
-      const eventId = route.params?.eventId || '1';
-      setEvent({
-        id: eventId,
-        title: 'Concert Gospel International',
-        description: 'Un concert exceptionnel avec les plus grandes voix du gospel',
-        longDescription: 'Ce concert unique en son genre rassemble des talents exceptionnels du monde entier pour célébrer la musique gospel. Attendez-vous à des performances vocales puissantes, des arrangements musicaux inspirants et une ambiance électrisante.',
-        date: '15 Janvier 2024',
-        time: '20h',
-        price: 0,
-        isFree: true,
-        image: require('../../../assets/images/1.jpg'),
-        category: 'Concert',
-        isLive: true,
-        organizer: 'Instant+ Events',
-        location: 'En ligne',
-        duration: '2h',
-        maxParticipants: 1000,
-        currentParticipants: 1250,
+      // Détecter le type d'erreur
+      const isNetworkError = 
+        error.code === 'ERR_NETWORK' || 
+        error.code === 'ECONNABORTED' ||
+        error.message === 'Network Error' ||
+        !error.response;
+      
+      const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+      
+      let errorMessage = 'Impossible de charger les détails de l\'événement';
+      if (isNetworkError || isTimeout) {
+        errorMessage = 'Erreur de connexion après plusieurs tentatives.\n\nVérifications:\n• Le backend est démarré\n• L\'IP est correcte (voir les logs du backend)\n• Le même réseau WiFi est utilisé\n• Le firewall autorise le port 5001';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Événement non trouvé';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Erreur serveur. Veuillez réessayer plus tard.';
+      }
+      
+      setError({ 
+        message: errorMessage, 
+        isNetworkError: isNetworkError || isTimeout 
       });
+      setRetrying(false);
     } finally {
       setLoading(false);
     }
@@ -200,106 +165,71 @@ const EventDetailsScreen: React.FC = () => {
   const checkEventAccessAndShowModal = () => {
     if (!event) return;
 
-    // Convertir EventDetails en Event pour la vérification d'accès
-    const eventForAccess: Event = convertToEventType(event);
-    const access = checkEventAccess(eventForAccess);
+    // Utiliser directement l'événement de l'API pour la vérification d'accès
+    const access = checkEventAccess(event);
+    const eventIsLive = event.streaming?.isLive || event.status === 'live';
 
     // Si l'utilisateur n'est pas connecté et que l'événement nécessite une connexion
-    if (!isAuthenticated && (event.isFree || event.isLive)) {
+    if (!isAuthenticated && (event.pricing?.isFree || eventIsLive)) {
       setShowAccessModal(true);
     }
-  };
-
-  const convertToEventType = (eventDetails: EventDetails): Event => {
-    return {
-      id: eventDetails.id,
-      title: eventDetails.title,
-      description: eventDetails.description,
-      organizer: {
-        id: '1',
-        firstName: eventDetails.organizer.split(' ')[0],
-        lastName: eventDetails.organizer.split(' ')[1] || '',
-      },
-      category: eventDetails.category.toLowerCase() as any,
-      tags: [],
-      startDate: new Date().toISOString(),
-      endDate: new Date().toISOString(),
-      timezone: 'Africa/Kinshasa',
-      location: {
-        type: 'physical',
-        address: {
-          city: eventDetails.location,
-          country: 'Congo',
-        },
-      },
-      media: {
-        poster: '',
-        gallery: [],
-      },
-      streaming: {
-        isLive: eventDetails.isLive,
-        isReplayAvailable: false,
-        replayAccess: 'free',
-        maxViewers: eventDetails.maxParticipants || 1000,
-        currentViewers: eventDetails.currentParticipants || 0,
-      },
-      pricing: {
-        isFree: eventDetails.isFree,
-        price: eventDetails.isFree ? undefined : {
-          amount: eventDetails.price,
-          currency: 'CDF',
-        },
-      },
-      capacity: {
-        total: eventDetails.maxParticipants || 1000,
-        available: (eventDetails.maxParticipants || 1000) - (eventDetails.currentParticipants || 0),
-        reserved: eventDetails.currentParticipants || 0,
-      },
-      status: 'published',
-      visibility: 'public',
-      isFeatured: false,
-      stats: {
-        views: 0,
-        likes: 0,
-        shares: 0,
-        ticketsSold: 0,
-        revenue: 0,
-        averageRating: 0,
-        totalRatings: 0,
-      },
-      settings: {
-        allowChat: true,
-        allowReactions: true,
-        requireApproval: false,
-        autoStart: false,
-        recordingEnabled: false,
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
   };
 
   const handleReservePress = () => {
     if (!event) return;
     
-    const eventForAccess = convertToEventType(event);
-    const access = checkEventAccess(eventForAccess);
-    
-    if (access.canAccess) {
-      (navigation as any).navigate('Reservation', { eventId: event.id });
-    } else {
-      const action = getAccessAction(eventForAccess);
-      if (action) {
-        action();
-      } else {
-        Alert.alert('Accès requis', access.message || 'Connexion requise');
+    // Pour les événements gratuits : inscription directe (pas de paiement)
+    if (event.pricing?.isFree) {
+      if (!isAuthenticated) {
+        Alert.alert(
+          'Connexion requise',
+          'Vous devez être connecté pour vous inscrire à cet événement',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Se connecter', onPress: () => (navigation as any).navigate('Login') },
+          ]
+        );
+        return;
       }
+      // TODO: Implémenter l'inscription aux événements gratuits
+      Alert.alert('Inscription', 'Vous êtes maintenant inscrit à cet événement !');
+      return;
     }
+    
+    // Pour les événements payants : navigation vers l'écran de paiement
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Connexion requise',
+        'Vous devez être connecté pour réserver un billet',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Se connecter', onPress: () => (navigation as any).navigate('Login') },
+        ]
+      );
+      return;
+    }
+    
+    // Navigation vers l'écran de paiement
+    (navigation as any).navigate('Payment', { 
+      eventId: event.id,
+      quantity: 1,
+    });
   };
 
   const handleJoinLivePress = () => {
     if (!event) return;
 
+    // Pour les événements gratuits : accès direct, pas besoin de ticket
+    const isFree = event.pricing?.isFree === true;
+    
+    if (isFree) {
+      // Pour les événements gratuits, lancer directement la vidéo
+      setIsVideoPlaying(true);
+      // Scroll vers le haut pour voir la vidéo
+      return;
+    }
+
+    // Pour les événements payants, vérifier l'authentification et les tickets
     if (!isAuthenticated) {
       setShowAccessModal(true);
       return;
@@ -349,7 +279,8 @@ const EventDetailsScreen: React.FC = () => {
   };
 
   // Si l'utilisateur n'est pas connecté et que l'événement nécessite une connexion, afficher la modal
-  if (!isAuthenticated && event && (event.isFree || event.isLive) && showAccessModal) {
+  const eventIsLive = event?.streaming?.isLive || event?.status === 'live';
+  if (!isAuthenticated && event && (event.pricing?.isFree || eventIsLive) && showAccessModal) {
     return (
       <AccessRequiredModal
         visible={true}
@@ -358,33 +289,123 @@ const EventDetailsScreen: React.FC = () => {
         onRegister={handleRegisterPress}
         title="Connexion requise"
         message="Vous devez vous connecter pour voir les détails de cet événement."
-        eventType={event.isLive ? 'live' : 'free'}
+        eventType={eventIsLive ? 'live' : 'free'}
       />
+    );
+  }
+
+  // Afficher l'écran d'erreur si erreur et pas d'événement
+  if (error && !event) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.errorContainer}>
+          <Ionicons 
+            name={error.isNetworkError ? "cloud-offline-outline" : "alert-circle-outline"} 
+            size={64} 
+            color={brandColors.mediumGray} 
+          />
+          <Text style={styles.errorTitle}>
+            {error.isNetworkError ? 'Erreur de connexion' : 'Erreur'}
+          </Text>
+          <Text style={styles.errorMessage}>{error.message}</Text>
+          
+          {error.isNetworkError && (
+            <View style={styles.errorTips}>
+              <Text style={styles.errorTipsTitle}>Vérifications à faire :</Text>
+              <Text style={styles.errorTip}>• Vérifiez votre connexion internet</Text>
+              <Text style={styles.errorTip}>• Vérifiez que le backend est démarré</Text>
+              <Text style={styles.errorTip}>• Vérifiez que l'IP du backend est correcte</Text>
+            </View>
+          )}
+          
+          <View style={styles.errorActions}>
+            <Button
+              title="Réessayer"
+              onPress={() => loadEventDetails(true)}
+              variant="primary"
+              size="large"
+              icon={<Ionicons name="refresh" size={20} color={brandColors.white} style={{ marginRight: 8 }} />}
+            />
+            <TouchableOpacity
+              style={styles.backButtonError}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.backButtonText}>Retour</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
     );
   }
 
   if (loading || !event) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Chargement...</Text>
+        {retrying ? (
+          <>
+            <Ionicons name="refresh" size={32} color={brandColors.primary} />
+            <Text style={styles.loadingText}>Nouvelle tentative de connexion...</Text>
+            <Text style={styles.loadingSubtext}>Vérification de la connexion au serveur</Text>
+          </>
+        ) : (
+          <Text style={styles.loadingText}>Chargement...</Text>
+        )}
       </View>
     );
   }
+
+  // Calculer les valeurs pour l'affichage
+  // Dans EventDetailsScreen : TOUJOURS afficher l'image (pas de vidéo)
+  // Les vidéos sont uniquement visibles dans HomeScreen pour les événements passés (replays)
+  const isLive = event?.streaming?.isLive || event?.status === 'live' || false;
+  
+  // Vérification plus robuste pour isFree (peut être true, "true", 1, etc.)
+  const pricingIsFree = event?.pricing?.isFree;
+  const isFree = pricingIsFree === true || pricingIsFree === 'true' || pricingIsFree === 1 || pricingIsFree === '1';
+
+  // Note: Dans EventDetailsScreen, on affiche toujours l'image
+  // Les vidéos sont uniquement pour les événements passés dans HomeScreen
+
+  // Fonction pour rendre le contenu image
+  // Dans EventDetailsScreen : TOUJOURS afficher l'image de l'événement
+  // Les vidéos sont uniquement visibles dans HomeScreen pour les événements passés (replays)
+  // Pour les événements à venir : l'utilisateur recevra un lien privé de streaming le jour J
+  const renderVideoContent = () => {
+    if (__DEV__) {
+      console.log(`🖼️ EventDetailsScreen - Affichage image (toujours):`, {
+        eventId: event?.id?.substring(0, 20),
+        eventStatus: event?.status,
+        posterUrl: event?.media?.poster ? '✅ Disponible' : '❌ Non disponible',
+      });
+    }
+    
+    // TOUJOURS afficher l'image dans EventDetailsScreen
+    // Les vidéos sont uniquement pour les événements passés dans HomeScreen
+    return (
+      <EventImage
+        posterUrl={event?.media?.poster || null}
+        eventId={event?.id}
+        sectionIndex={0}
+        style={styles.eventImage}
+        resizeMode="cover"
+      />
+    );
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Header avec image */}
+      {/* Header avec image ou vidéo - utiliser directement les données de l'API comme HomeScreen */}
       <View style={styles.header}>
-        <EventImage
-          posterUrl={typeof event.image === 'object' && 'posterUrl' in event.image ? event.image.posterUrl : null}
-          eventId={typeof event.image === 'object' && 'eventId' in event.image ? event.image.eventId : event.id}
-          style={styles.eventImage}
-        />
+        {/* Pour les événements en direct ou passés : afficher thumbnail cliquable qui lance la vidéo */}
+        {renderVideoContent()}
+        {/* Gradient avec pointerEvents="none" pour ne pas bloquer les clics sur la vidéo */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)']}
           style={styles.imageGradient}
+          pointerEvents="none"
         />
         
         {/* Bouton retour */}
@@ -396,12 +417,12 @@ const EventDetailsScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color={brandColors.white} />
         </TouchableOpacity>
 
-        {/* Badges */}
+        {/* Badges - utiliser directement les données de l'API comme HomeScreen */}
         <View style={styles.badgesContainer}>
-          {event.isLive && (
+          {(event.streaming?.isLive || event.status === 'live') && (
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
+              <Text style={styles.liveText}>EN DIRECT</Text>
             </View>
           )}
           {hasStreamingAccess && (
@@ -410,40 +431,53 @@ const EventDetailsScreen: React.FC = () => {
               <Text style={styles.streamingText}>STREAMING</Text>
             </View>
           )}
-          <View style={[styles.categoryBadge, { backgroundColor: event.isFree ? brandColors.success : brandColors.primary }]}>
+          <View style={[styles.categoryBadge, { backgroundColor: event.pricing?.isFree ? brandColors.success : brandColors.primary }]}>
             <Text style={styles.categoryText}>{event.category}</Text>
           </View>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Titre et prix */}
+        {/* Titre et prix - utiliser directement les données de l'API comme HomeScreen */}
         <View style={styles.titleSection}>
           <Text style={styles.eventTitle}>{event.title}</Text>
           <View style={styles.priceContainer}>
-            <Text style={[styles.priceText, event.isFree && styles.freePriceText]}>
-              {event.isFree ? 'GRATUIT' : `${event.price.toLocaleString()} FCFA`}
+            <Text style={[styles.priceText, event.pricing?.isFree && styles.freePriceText]}>
+              {event.pricing?.isFree ? 'GRATUIT' : `${event.pricing?.price?.amount?.toLocaleString() || 0} ${event.pricing?.price?.currency || 'FCFA'}`}
             </Text>
           </View>
         </View>
 
-        {/* Informations de base */}
+        {/* Informations de base - utiliser directement les données de l'API comme HomeScreen */}
         <View style={styles.infoSection}>
           <View style={styles.infoItem}>
             <Ionicons name="calendar-outline" size={20} color={brandColors.primary} />
-            <Text style={styles.infoText}>{event.date}</Text>
+            <Text style={styles.infoText}>
+              {new Date(event.startDate).toLocaleDateString('fr-FR', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              })}
+            </Text>
           </View>
           <View style={styles.infoItem}>
             <Ionicons name="time-outline" size={20} color={brandColors.primary} />
-            <Text style={styles.infoText}>{event.time}</Text>
+            <Text style={styles.infoText}>
+              {new Date(event.startDate).toLocaleTimeString('fr-FR', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </Text>
           </View>
           <View style={styles.infoItem}>
             <Ionicons name="location-outline" size={20} color={brandColors.primary} />
-            <Text style={styles.infoText}>{event.location}</Text>
+            <Text style={styles.infoText}>
+              {event.location?.type === 'online' ? 'En ligne' : (event.location?.address?.city || event.location?.address?.fullAddress || 'Lieu à confirmer')}
+            </Text>
           </View>
         </View>
 
-        {/* Organisateur */}
+        {/* Organisateur - utiliser directement les données de l'API */}
         <View style={styles.organizerSection}>
           <Text style={styles.sectionTitle}>Organisateur</Text>
           <View style={styles.organizerCard}>
@@ -451,34 +485,144 @@ const EventDetailsScreen: React.FC = () => {
               <Ionicons name="business" size={24} color={brandColors.primary} />
             </View>
             <View style={styles.organizerInfo}>
-              <Text style={styles.organizerName}>{event.organizer}</Text>
-              <Text style={styles.organizerType}>Organisateur certifié</Text>
+              <Text style={styles.organizerName}>
+                {(() => {
+                  // Debug: logger la structure complète de organizer et createdBy
+                  if (__DEV__) {
+                    console.log('🔍 Organizer debug:', {
+                      organizerType: typeof event.organizer,
+                      organizerIsObject: typeof event.organizer === 'object',
+                      organizerIsNull: event.organizer === null,
+                      organizerValue: event.organizer,
+                      organizerKeys: event.organizer && typeof event.organizer === 'object' ? Object.keys(event.organizer) : null,
+                      organizerHasName: event.organizer && typeof event.organizer === 'object' && 'name' in event.organizer,
+                      organizerNameValue: event.organizer && typeof event.organizer === 'object' ? event.organizer.name : null,
+                      createdByType: typeof event.createdBy,
+                      createdByIsObject: typeof event.createdBy === 'object',
+                      createdByIsNull: event.createdBy === null,
+                      createdByValue: event.createdBy,
+                      createdByKeys: event.createdBy && typeof event.createdBy === 'object' ? Object.keys(event.createdBy) : null,
+                      createdByFirstName: event.createdBy && typeof event.createdBy === 'object' ? event.createdBy.firstName : null,
+                      createdByLastName: event.createdBy && typeof event.createdBy === 'object' ? event.createdBy.lastName : null,
+                    });
+                  }
+                  
+                  // organizer peut être:
+                  // 1. Un objet avec name (sous-document) - { name: "...", email: "...", phone: "..." }
+                  // 2. Un objet avec firstName/lastName (populate) - { firstName: "...", lastName: "..." }
+                  // 3. Un ObjectId string (si c'est une référence non peuplée) - "507f1f77bcf86cd799439011"
+                  // 4. null/undefined
+                  
+                  if (event.organizer) {
+                    if (typeof event.organizer === 'object' && event.organizer !== null && !Array.isArray(event.organizer)) {
+                      // Si c'est un sous-document avec name (structure normale)
+                      if ('name' in event.organizer && event.organizer.name) {
+                        const name = String(event.organizer.name).trim();
+                        if (name && name.length > 0) {
+                          if (__DEV__) {
+                            console.log('✅ Utilisation de organizer.name:', name);
+                          }
+                          return name;
+                        }
+                      }
+                      // Si c'est un objet populate avec firstName/lastName (ObjectId peuplé)
+                      if ('firstName' in event.organizer || 'lastName' in event.organizer) {
+                        const firstName = event.organizer.firstName || '';
+                        const lastName = event.organizer.lastName || '';
+                        const name = `${firstName} ${lastName}`.trim();
+                        if (name && name.length > 0) {
+                          if (__DEV__) {
+                            console.log('✅ Utilisation de organizer (peuplé):', { firstName, lastName, name });
+                          }
+                          return name;
+                        }
+                      }
+                      // Si c'est un objet avec id (peuplé mais peut-être sans firstName/lastName)
+                      if ('id' in event.organizer && !('name' in event.organizer)) {
+                        // C'est un ObjectId peuplé mais sans données, utiliser createdBy
+                        if (__DEV__) {
+                          console.warn('⚠️ Organizer est un ObjectId peuplé mais sans firstName/lastName');
+                        }
+                      }
+                    }
+                    // Si c'est une string
+                    if (typeof event.organizer === 'string') {
+                      // Si c'est un ObjectId (24 caractères hexadécimaux), ne pas l'afficher
+                      if (/^[0-9a-fA-F]{24}$/.test(event.organizer)) {
+                        // C'est un ObjectId, ne pas l'afficher, utiliser createdBy à la place
+                        if (__DEV__) {
+                          console.warn('⚠️ Organizer est un ObjectId non peuplé:', event.organizer);
+                        }
+                      } else {
+                        // C'est probablement un nom direct
+                        return event.organizer.trim();
+                      }
+                    }
+                  }
+                  // Fallback sur createdBy
+                  if (event.createdBy) {
+                    if (typeof event.createdBy === 'object' && event.createdBy !== null) {
+                      const firstName = event.createdBy.firstName || '';
+                      const lastName = event.createdBy.lastName || '';
+                      const name = `${firstName} ${lastName}`.trim();
+                      if (name && name.length > 0) {
+                        if (__DEV__) {
+                          console.log('✅ Utilisation de createdBy:', { firstName, lastName, name });
+                        }
+                        return name;
+                      }
+                      // Si createdBy existe mais n'a pas de nom, essayer d'autres propriétés
+                      if (event.createdBy.email) {
+                        return event.createdBy.email;
+                      }
+                      if (event.createdBy.phone) {
+                        return event.createdBy.phone;
+                      }
+                    } else if (typeof event.createdBy === 'string') {
+                      // Si createdBy est une string (ObjectId), ne pas l'afficher
+                      if (__DEV__) {
+                        console.warn('⚠️ createdBy est un ObjectId non peuplé:', event.createdBy);
+                      }
+                    }
+                  }
+                  
+                  if (__DEV__) {
+                    console.warn('⚠️ Aucun organisateur trouvé - organizer:', event.organizer, 'createdBy:', event.createdBy);
+                  }
+                  // Dernier fallback : utiliser un nom par défaut
+                  return 'Instant+ Events';
+                })()}
+              </Text>
+              <Text style={styles.organizerType}>
+                {event.organizer?.company || 
+                 (event.organizer?.email ? `Email: ${event.organizer.email}` : 'Organisateur certifié')}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Description */}
+        {/* Description - utiliser directement les données de l'API */}
         <View style={styles.descriptionSection}>
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.descriptionText}>{event.longDescription}</Text>
+          <Text style={styles.descriptionText}>{event.description || 'Aucune description disponible'}</Text>
         </View>
 
-        {/* Participants (si applicable) */}
-        {event.maxParticipants && (
+        {/* Participants (si applicable) - utiliser directement les données de l'API */}
+        {event.capacity?.total && (
           <View style={styles.participantsSection}>
             <Text style={styles.sectionTitle}>Participants</Text>
             <View style={styles.participantsInfo}>
               <View style={styles.participantsCount}>
                 <Ionicons name="people" size={20} color={brandColors.primary} />
                 <Text style={styles.participantsText}>
-                  {event.currentParticipants} / {event.maxParticipants} participants
+                  {event.streaming?.currentViewers || event.capacity.reserved || 0} / {event.capacity.total} participants
                 </Text>
               </View>
               <View style={styles.participantsProgress}>
                 <View 
                   style={[
                     styles.progressBar, 
-                    { width: `${(event.currentParticipants! / event.maxParticipants) * 100}%` }
+                    { width: `${((event.streaming?.currentViewers || event.capacity.reserved || 0) / event.capacity.total) * 100}%` }
                   ]} 
                 />
               </View>
@@ -490,17 +634,21 @@ const EventDetailsScreen: React.FC = () => {
         <View style={styles.buttonSpacer} />
       </ScrollView>
 
-      {/* Bouton d'action fixe */}
+      {/* Bouton d'action fixe - utiliser directement les données de l'API */}
       <View style={styles.actionButtonContainer}>
-        {event.isLive ? (
-          <TouchableOpacity
-            style={styles.joinLiveButton}
-            onPress={handleJoinLivePress}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="radio" size={20} color={brandColors.white} />
-            <Text style={styles.joinLiveButtonText}>Rejoindre le direct</Text>
-          </TouchableOpacity>
+        {(event.streaming?.isLive || event.status === 'live') ? (
+          // Pour les événements en direct : afficher "Rejoindre le direct" UNIQUEMENT pour les payants
+          // Pour les gratuits, la vidéo est déjà visible en haut
+          !isFree ? (
+            <TouchableOpacity
+              style={styles.joinLiveButton}
+              onPress={handleJoinLivePress}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="radio" size={20} color={brandColors.white} />
+              <Text style={styles.joinLiveButtonText}>Rejoindre le direct</Text>
+            </TouchableOpacity>
+          ) : null
         ) : (
           <TouchableOpacity
             style={styles.reserveButton}
@@ -509,7 +657,7 @@ const EventDetailsScreen: React.FC = () => {
           >
             <Ionicons name="calendar" size={20} color={brandColors.white} />
             <Text style={styles.reserveButtonText}>
-              {event.isFree ? 'S\'inscrire' : 'Réserver'}
+              {event.pricing?.isFree ? 'S\'inscrire' : 'Réserver'}
             </Text>
           </TouchableOpacity>
         )}
@@ -533,6 +681,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontFamily: 'Montserrat_500Medium',
     color: brandColors.mediumGray,
+    marginTop: 12,
+  },
+  loadingSubtext: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: 'Montserrat_400Regular',
+    color: brandColors.mediumGray,
+    marginTop: 8,
+    textAlign: 'center',
   },
   header: {
     height: 300,
@@ -793,6 +949,64 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_700Bold',
     color: brandColors.white,
     textTransform: 'none',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: brandColors.white,
+  },
+  errorTitle: {
+    fontSize: typography.fontSize['2xl'],
+    fontFamily: typography.fontFamily.bold,
+    color: brandColors.darkGray,
+    marginTop: 20,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: typography.fontSize.base,
+    fontFamily: typography.fontFamily.regular,
+    color: brandColors.mediumGray,
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 24,
+  },
+  errorTips: {
+    width: '100%',
+    maxWidth: 300,
+    backgroundColor: brandColors.lightGray,
+    padding: 16,
+    borderRadius: borderRadius.lg,
+    marginBottom: 30,
+  },
+  errorTipsTitle: {
+    fontSize: typography.fontSize.base,
+    fontFamily: typography.fontFamily.bold,
+    color: brandColors.darkGray,
+    marginBottom: 12,
+  },
+  errorTip: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.regular,
+    color: brandColors.mediumGray,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  errorActions: {
+    width: '100%',
+    maxWidth: 300,
+    gap: 12,
+  },
+  backButtonError: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    fontSize: typography.fontSize.base,
+    fontFamily: typography.fontFamily.medium,
+    color: brandColors.primary,
   },
 });
 

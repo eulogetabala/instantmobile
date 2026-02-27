@@ -7,6 +7,7 @@ import { theme } from '../constants/theme';
 
 // Import des écrans (même rendu que les invités mais avec fonctionnalités connectées)
 import GuestHomeScreen from '../screens/guest/GuestHomeScreen';
+import HomeScreen from '../screens/HomeScreen';
 import GuestEventsScreen from '../screens/guest/GuestEventsScreen';
 import GuestLiveScreen from '../screens/guest/GuestLiveScreen';
 import GuestReplaysScreen from '../screens/guest/GuestReplaysScreen';
@@ -142,7 +143,7 @@ const MainTabNavigator: React.FC = () => {
     >
       <Tab.Screen 
         name="Home" 
-        component={GuestHomeScreen}
+        component={HomeScreen}
         options={{
           tabBarLabel: 'Accueil',
         }}
@@ -200,7 +201,7 @@ const MainNavigator: React.FC = () => {
         name="Streaming" 
         component={StreamingScreen}
         options={{
-          presentation: 'fullScreenModal',
+          presentation: 'modal',
         }}
       />
       <Stack.Screen 
